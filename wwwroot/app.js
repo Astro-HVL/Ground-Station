@@ -8,7 +8,7 @@ function dbg(s){
   debug.textContent = s + "\n" + debug.textContent;
   if(debug.textContent.length>8000) debug.textContent = debug.textContent.slice(0,8000);
 }
-const BLINK_AZ_THRESHOLD = 0;
+const BLINK_AZ_THRESHOLD = -1.50;
 // DOM elements
 const valTime = document.getElementById('val_time');
 const valSeq  = document.getElementById('val_seq');
@@ -508,14 +508,14 @@ connection.on("telemetry", (payload) => {
       pushToCharts(ax, ay, az, pitch, roll, yaw, temp, vel, press, alt);
 
       // 🚀 Constant blink logic
-      if (Number(payload.az) <= BLINK_AZ_THRESHOLD) {
+      if (Number(payload.pitch) <= BLINK_AZ_THRESHOLD) {
         document.body.classList.add("blink-red");
       } else {
         document.body.classList.remove("blink-red");
       }
 
       const dashboardTitle = document.querySelector('h1');
-      if (Number(payload.az) <= BLINK_AZ_THRESHOLD) {
+      if (Number(payload.pitch) <= BLINK_AZ_THRESHOLD) {
         document.body.classList.add("blink-red");
         if (dashboardTitle) dashboardTitle.textContent = "WARNING: Altitude dropping";
       } else {

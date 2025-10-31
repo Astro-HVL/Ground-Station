@@ -10,6 +10,20 @@
   <script src="rocket3d.js"></script>
 </head>
 <body>
+
+  <!-- Flight time display (top center) -->
+<div id="flightTimer" style="
+  position: fixed; 
+  top: 8px; 
+  left: 50%; 
+  transform: translateX(-50%);
+  font-size: 28px; 
+  font-weight: 700; 
+  color: #fff; 
+  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  z-index: 1000;
+  "></div>
+
   <div class="live-container">
     <!-- Top hero: left large grid chart, center globe+legend, right small rocket indicator -->
     <div id="top-row" style="display:flex; gap:24px; width:100%; align-items:flex-start;">
@@ -29,11 +43,13 @@
       <!-- Left section: Mode info -->
       <div class="mode-section">
       <div style="color:#fff; font-size:36px; margin-bottom:6px;">Rocket mode:</div>
-        <div class="mode-pill"; style="background:#0f1b49";>
-          <div id="modeOn" class="mode-box">ON</div>
-          <div id="modeReady" class="mode-box">Operation Ready</div>
-          <div id="modePending" class="mode-box">Launch Pending</div>
-        </div>
+      <div class="mode-pill" style="background:#0f1b49">
+        <div id="modeOn" class="mode-box">System Check</div>
+        <div id="modeReady" class="mode-box">Operation Ready</div>
+        <div id="modePending" class="mode-box">Lift-off</div>
+        <div id="modeApogee" class="mode-box">Apogee</div>
+        <div id="modeParachute" class="mode-box">Parachute Deployed</div>
+      </div>
       </div>
 
       <div id="bottom-right" style="display:flex; gap:30px; align-items:flex-end;">

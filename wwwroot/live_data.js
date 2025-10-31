@@ -1,11 +1,12 @@
 // live_data.js - connects to SignalR telemetry hub and updates the live page
 const conn = new signalR.HubConnectionBuilder().withUrl('/telemetry').withAutomaticReconnect().build();
 
-// DOM elements (will be set after DOMContentLoaded)
-let heightDisplay, speedDisplay, accelDisplay, circleAlt, circleVel, circleG;
-let modeOn, modeReady, modePending;
+// DOM elements
+let circleAlt, circleVel, circleG;
+let modeOn, modeReady, modePending, modeApogee, modeParachute;
+let flightTimerEl;
 
-// create small debug status box so users can see init state without opening console
+// debug status
 let __statusBox = null;
 function ensureStatusBox(){
   if (__statusBox) return __statusBox;
@@ -18,109 +19,25 @@ function ensureStatusBox(){
 }
 function setStatus(text){ try { ensureStatusBox().textContent = 'live_data: ' + text; } catch(e){} }
 
-// mode elements will be looked up after DOMContentLoaded
-
+// ---------- Mode helpers ----------
 function setActiveMode(name){
-  [modeOn, modeReady, modePending].forEach(el => { if(!el) return; el.classList.remove('active-mode'); });
-  const map = { 'on': modeOn, 'ready': modeReady, 'pending': modePending };
+  [modeOn, modeReady, modePending, modeApogee, modeParachute].forEach(el => { if(!el) return; el.classList.remove('active-mode'); });
+  const map = { 
+    'on': modeOn, 
+    'ready': modeReady, 
+    'pending': modePending, 
+    'apogee': modeApogee, 
+    'parachute': modeParachute 
+  };
   const el = map[name];
   if (el) el.classList.add('active-mode');
 }
 
-// altitude chart
+// ---------- Charts ----------
 let altChart;
-document.addEventListener('DOMContentLoaded', () => {
-  heightDisplay = document.getElementById('heightValue') || document.getElementById('heightDisplay');
-  speedDisplay = document.getElementById('speedValue') || document.getElementById('speedDisplay');
-  accelDisplay = document.getElementById('accelValue') || document.getElementById('accelDisplay');
-  circleAlt = document.getElementById('circleAltValue');
-  circleVel = document.getElementById('circleVelValue');
-  circleG = document.getElementById('circleGValue');
-
-  console.log('live_data elements', { heightDisplay, speedDisplay, accelDisplay, circleAlt, circleVel, circleG });
-
-  // mode elements
-  modeOn = document.getElementById('modeOn');
-  modeReady = document.getElementById('modeReady');
-  modePending = document.getElementById('modePending');
-
-  // make mode boxes clickable for testing
-  try {
-    if (modeOn) modeOn.addEventListener('click', () => setActiveMode('on'));
-    if (modeReady) modeReady.addEventListener('click', () => setActiveMode('ready'));
-    if (modePending) modePending.addEventListener('click', () => setActiveMode('pending'));
-  } catch(e) { }
-
-  // ensure white circles are visible even if CSS didn't load properly
-  try {
-    const wrappers = document.querySelectorAll('.white-circle');
-    wrappers.forEach(w => {
-      w.style.display = 'flex';
-      w.style.flexDirection = 'column';
-      w.style.alignItems = 'center';
-      w.style.justifyContent = 'center';
-      w.style.background = '#ececec';
-      w.style.color = '#000';
-      w.style.width = w.style.width || '260px';
-      w.style.height = w.style.height || '260px';
-      w.style.borderRadius = '130px';
-      w.style.border = w.style.border || '2px solid rgba(0,0,0,0.06)';
-      w.style.boxSizing = 'border-box';
-      w.style.zIndex = 5;
-    });
-  } catch (e) { console.warn('forcing circle styles failed', e); }
-
-  createAltChart();
-});
-
-// Fallback 2D rocket renderer if rocket3d.js is not available
-function createFallbackRocket() {
-  const container = document.getElementById('rocket3dContainer');
-  if (!container) return null;
-  // create a canvas sized to container
-  const canvas = document.createElement('canvas');
-  canvas.width = container.clientWidth || 220;
-  canvas.height = container.clientHeight || 220;
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-  container.innerHTML = '';
-  container.appendChild(canvas);
-  const ctx = canvas.getContext('2d');
-
-  function draw(pitch = 0, yaw = 0, roll = 0) {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.save();
-    ctx.translate(canvas.width/2, canvas.height - 20);
-    ctx.rotate((yaw||0) * Math.PI/180);
-    // simple rocket
-    ctx.fillStyle = '#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(0,-80); ctx.lineTo(12,-30); ctx.lineTo(6,-30); ctx.lineTo(6,0); ctx.lineTo(-6,0); ctx.lineTo(-6,-30); ctx.lineTo(-12,-30); ctx.closePath(); ctx.fill(); ctx.stroke();
-    // axes
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-50); ctx.strokeStyle='gold'; ctx.lineWidth=3; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(30,-30); ctx.strokeStyle='crimson'; ctx.lineWidth=3; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(40,0); ctx.strokeStyle='limegreen'; ctx.lineWidth=3; ctx.stroke();
-    ctx.restore();
-  }
-  return { draw };
-}
-
-// If rocket3d isn't present, set a fallback setter that draws to the 2D canvas
-if (typeof initRocket3D !== 'function') {
-  document.addEventListener('DOMContentLoaded', () => {
-    const fallback = createFallbackRocket();
-    if (fallback) {
-      window.setRocket3DRotation = (pitch,yaw,roll) => { try { fallback.draw(pitch,yaw,roll); } catch(e){} };
-      console.warn('Using 2D fallback rocket renderer');
-    }
-  });
-}
-
 function createAltChart(){
   const el = document.getElementById('altitudeChart');
-  if (!el) {
-    console.warn('altitudeChart canvas not found');
-    return;
-  }
+  if (!el) return;
   const ctx = el.getContext('2d');
   altChart = new Chart(ctx, {
     type: 'line',
@@ -130,7 +47,7 @@ function createAltChart(){
         {
           label: 'Altitude (m)',
           data: [],
-          borderColor: 'Magenta',
+          borderColor: 'magenta',
           fill: false,
           yAxisID: 'y_alt',
           pointRadius: 1
@@ -144,115 +61,160 @@ function createAltChart(){
       scales: {
         x: {
           display: true,
-          min: 0,
-          title: { display: true, text: 'Time (s)', font: { size: 20 }, color: '#fff' },
-          ticks: { font: { size: 14 }, color: '#fff', callback: function(value, index) {
-            const label = this.getLabelForValue(index);
-            if (!label) return '';
-            return parseFloat(label);
-          } }
+          title: { display: true, text: 'Time (s)', color: '#fff', font: { size: 18 } },
+          ticks: { color: '#fff' }
         },
         y_alt: {
-          title: { display: true, text: 'Altitude (m)', font: { size: 20 }, color: '#fff' },
-          ticks: { font: { size: 14 }, color: '#fff' }
+          title: { display: true, text: 'Altitude (m)', color: '#fff', font: { size: 18 } },
+          ticks: { color: '#fff' }
         }
       },
-      plugins: { legend: { labels: { font: { size: 20 }, color: '#fff' } } }
+      plugins: { legend: { labels: { color: '#fff' } } }
     }
   });
 }
 
-// helper to update metrics
-function updateMetrics(alt, vel, ax, ay, az){
-  if (heightDisplay) heightDisplay.textContent = (alt !== undefined ? Number(alt).toFixed(0) : '-');
-  if (speedDisplay) speedDisplay.textContent = (vel !== undefined ? Number(vel).toFixed(1) : '-');
-  if (accelDisplay) {
-    if (ax===undefined||ay===undefined||az===undefined) accelDisplay.textContent='-';
-    else accelDisplay.textContent = Math.sqrt(ax*ax+ay*ay+az*az).toFixed(2);
-  }
-  // update bottom-left white circles
-  if (circleAlt) circleAlt.textContent = (alt !== undefined ? Number(alt).toFixed(0) : '-');
-  if (circleVel) circleVel.textContent = (vel !== undefined ? Number(vel).toFixed(1) : '-');
-  if (circleG) {
-    if (ax===undefined||ay===undefined||az===undefined) circleG.textContent='-';
-    else circleG.textContent = Math.sqrt(ax*ax+ay*ay+az*az).toFixed(2);
-  }
-}
-
-// push altitude to chart
 function pushAltitude(tSec, alt){
   if (!altChart) return;
-  altChart.data.labels.push(tSec.toFixed(2));
+  altChart.data.labels.push(tSec.toFixed(3));
   altChart.data.datasets[0].data.push(alt);
-  if (altChart.data.labels.length>200) { altChart.data.labels.shift(); altChart.data.datasets[0].data.shift(); }
+  if (altChart.data.labels.length > 300) {
+    altChart.data.labels.shift();
+    altChart.data.datasets[0].data.shift();
+  }
   altChart.update('none');
 }
 
-// receive telemetry
+// ---------- Metric updater ----------
+function updateMetrics(alt, vel, ax, ay, az){
+  if (circleAlt) circleAlt.textContent = isFinite(alt) ? alt.toFixed(0) : '-';
+  if (circleVel) circleVel.textContent = isFinite(vel) ? vel.toFixed(1) : '-';
+  if (circleG) {
+    const g = Math.sqrt(ax*ax + ay*ay + az*az);
+    circleG.textContent = isFinite(g) ? g.toFixed(2) : '-';
+  }
+}
+
+// ---------- Fallback 2D rocket ----------
+function createFallbackRocket() {
+  const container = document.getElementById('rocket3dContainer');
+  if (!container) return null;
+  const canvas = document.createElement('canvas');
+  canvas.width = container.clientWidth || 220;
+  canvas.height = container.clientHeight || 220;
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  container.innerHTML = '';
+  container.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  function draw(pitch = 0, yaw = 0, roll = 0) {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width/2, canvas.height - 20);
+    ctx.rotate((yaw||0) * Math.PI/180);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(0,-80); ctx.lineTo(12,-30); ctx.lineTo(6,-30);
+    ctx.lineTo(6,0); ctx.lineTo(-6,0); ctx.lineTo(-6,-30); ctx.lineTo(-12,-30);
+    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  return { draw };
+}
+
+if (typeof initRocket3D !== 'function') {
+  document.addEventListener('DOMContentLoaded', () => {
+    const fb = createFallbackRocket();
+    if (fb) window.setRocket3DRotation = (p,y,r) => fb.draw(p,y,r);
+  });
+}
+
+// ---------- Telemetry handling ----------
 conn.on('telemetry', payload => {
   try {
-    if (payload.type !== 'telemetry') return;
-    const t = Number(payload.t)/1000.0; // seconds
-    const alt = Number(payload.alt);
-    const vel = Number(payload.vel);
-    const ax = Number(payload.ax);
-    const ay = Number(payload.ay);
-    const az = Number(payload.az);
-    const pitch = Number(payload.pitch);
-    const roll = Number(payload.roll);
-    const yaw = Number(payload.yaw);
+    if (payload.type === 'telemetry') {
+      const state = Number(payload.state);
+      const tSec = Number(payload.t);             // allerede i sekunder
+      const alt = Number(payload.alt);
+      const vel = Number(payload.vel);
+      const ax = Number(payload.ax);
+      const ay = Number(payload.ay);
+      const az = Number(payload.az);
+      const pitch = Number(payload.pitch);
+      const roll  = Number(payload.roll);
+      const yaw   = Number(payload.yaw);
 
-    updateMetrics(alt, vel, ax, ay, az);
-    pushAltitude(t, alt);
+      // flight timer
+      if (flightTimerEl) flightTimerEl.textContent = `Flight duration: ${tSec.toFixed(2)} s`;
 
-    // update 3D rocket via external function if provided by rocket3d.js
-    if (typeof setRocket3DRotation === 'function') setRocket3DRotation(pitch, yaw, roll);
+      // metrikker og 3D
+      updateMetrics(alt, vel, ax, ay, az);
+      if (typeof setRocket3DRotation === 'function') setRocket3DRotation(pitch, yaw, roll);
 
-    // mode heuristic: use velocity and altitude to choose a mode for demo
-    if (vel > 1) setActiveMode('on');
-    else if (alt > 10) setActiveMode('ready');
-    else setActiveMode('pending');
-  } catch(e){ console.error('telemetry parse error', e); }
+      // oppdater altitude chart KUN når state == 3 (LAUNCH)
+      if (state === 3 || state === 4 || state === 5) {
+        pushAltitude(tSec, alt);
+      }
+
+      // pill state
+      switch (state) {
+        case 1: setActiveMode('on');        document.body.classList.remove('blink-red'); break; // System Check
+        case 2: setActiveMode('ready');     document.body.classList.remove('blink-red'); break; // Launch Ready
+        case 3: setActiveMode('pending');   document.body.classList.remove('blink-red'); break; // Launch
+        case 4: setActiveMode('apogee');    document.body.classList.remove('blink-red'); break; // Apogee
+        case 5: setActiveMode('parachute'); document.body.classList.add('blink-red');    break; // Parachute Deploy
+      }
+
+    }
+    else if (payload.type === 'json' && payload.data) {
+      // (Valgfritt: fortsatt støtte for JSON-statuspakker, men ikke nødvendig når CSV sendes hele tiden)
+      const st = payload.data.state;
+      switch (st) {
+        case 1: setActiveMode('on');      document.body.classList.remove('blink-red'); break;
+        case 2: setActiveMode('ready');   document.body.classList.remove('blink-red'); break;
+        case 3: setActiveMode('pending'); document.body.classList.remove('blink-red'); break;
+        case 4: setActiveMode('apogee');  document.body.classList.remove('blink-red'); break;
+        case 5: setActiveMode('parachute'); document.body.classList.add('blink-red');  break;
+      }
+    }
+  } catch(e){
+    console.error('telemetry parse error', e);
+  }
 });
 
+// ---------- Connection start ----------
 async function startConn(){
   try {
     await conn.start();
-    console.log('live_data connected');
+    setStatus('connected');
+  } catch(e){
+    console.error('connection start failed', e);
+    setStatus('retry...');
+    setTimeout(startConn, 2000);
   }
-  catch(e){ console.error('conn start failed', e); setTimeout(startConn,2000); }
 }
 
-// Initialize UI and 3D model once DOM is ready
+// ---------- DOM ready ----------
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM ready - initializing live_data UI');
-  // placeholders for circles
-  try {
-    if (circleAlt && circleAlt.textContent.trim() === '') circleAlt.textContent = '-';
-    if (circleVel && circleVel.textContent.trim() === '') circleVel.textContent = '-';
-    if (circleG && circleG.textContent.trim() === '') circleG.textContent = '-';
-  } catch (e) { console.warn('placeholder init failed', e); }
+  circleAlt = document.getElementById('circleAltValue');
+  circleVel = document.getElementById('circleVelValue');
+  circleG   = document.getElementById('circleGValue');
+  modeOn = document.getElementById('modeOn');
+  modeReady = document.getElementById('modeReady');
+  modePending = document.getElementById('modePending');
+  modeApogee = document.getElementById('modeApogee');
+  modeParachute = document.getElementById('modeParachute');
+  flightTimerEl = document.getElementById('flightTimer');
 
-  // initialize the shared 3D model container if available — run once after a short delay so layout settles
-    if (typeof initRocket3D === 'function') {
-      // only init once across potential multiple pages
-      if (!window.__rocket3d_inited) {
-        window.__rocket3d_inited = true;
-        setTimeout(() => {
-          try { initRocket3D(); }
-          catch(e) { console.error('initRocket3D error', e); setStatus('3D init error'); }
-        }, 120);
-      } else {
-        console.log('rocket3d already initialized elsewhere');
-        setStatus('3D already init');
-      }
-    } else {
-      console.warn('initRocket3D not found'); setStatus('3D not found');
+  if (typeof initRocket3D === 'function') {
+    if (!window.__rocket3d_inited) {
+      window.__rocket3d_inited = true;
+      setTimeout(() => { try { initRocket3D(); } catch(e){ console.error(e); } }, 100);
     }
+  } else setStatus('3D not found');
 
-  // start SignalR connection
+  createAltChart();
   startConn();
-
-  // default mode
-  setActiveMode('ready');
+  setActiveMode('on'); // default: System Check
 });
