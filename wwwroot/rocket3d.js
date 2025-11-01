@@ -5,9 +5,9 @@ function setRocket3DRotation(pitch, yaw, roll) {
     rocket3dModel.rotation.order = 'ZYX'; // yaw→pitch→roll
 
     // Rotation of the rocket model
-    rocket3dModel.rotation.z = THREE.MathUtils.degToRad(roll || 0);  // roll (IMU Z)
-    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(pitch || 0); // pitch (IMU Y)
-    rocket3dModel.rotation.x = THREE.MathUtils.degToRad(yaw || 0);   // yaw (IMU X)
+    rocket3dModel.rotation.z = THREE.MathUtils.degToRad(pitch || 0);  // roll (IMU Z)
+    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(yaw || 0); // pitch (IMU Y)
+    rocket3dModel.rotation.x = THREE.MathUtils.degToRad(roll || 0);   // yaw (IMU X)
 }
 
 let rocket3dScene, rocket3dCamera, rocket3dRenderer, rocket3dModel, axesGroup;
