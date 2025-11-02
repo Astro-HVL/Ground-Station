@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Hosting;
 using System.Text.Json;
+using TelemetryWebApp.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
@@ -13,6 +14,29 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapHub<TelemetryHub>("/telemetry");
+
+// *************************************************************** DATABASE CONNECTION AND SEEDING - START *************************************************************** //
+// To be able to see your database locally with test data, you need to make sure you have the tables created :) Check the manual for the SQL scripts and HOW TO
+
+// Create database connection
+var dbConn = new DbConnection();
+
+// Run the flight state seeder once
+var flightStateseeder = new DbFlightStateSeeder(dbConn);
+await flightStateseeder.SeedFlightStatesAsync();
+
+// Pass connection to the test seeder
+var testSeeder = new DbTestSeeder(dbConn);
+
+// Seed the database with test data
+await testSeeder.SeedTestAsync(
+    rocketName: "testRocket",
+    missionName: "testFlight",
+    telemetryRows: 1500,
+    samplePeriodMs: 50
+);
+
+// *************************************************************** DATABASE CONNECTION AND SEEDING - END ***************************************************************** //
 
 var cts = new CancellationTokenSource();
 var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ?? (OperatingSystem.IsWindows() ? "COM4" : "/dev/ttyUSB0");
@@ -23,6 +47,8 @@ _ = Task.Run(() => SerialLoop(portName, baud, hub, cts.Token));
 
 app.Lifetime.ApplicationStopping.Register(() => cts.Cancel());
 app.Run();
+
+
 
 async Task SerialLoop(string port, int baudrate, IHubContext<TelemetryHub> hub, CancellationToken token)
 {
