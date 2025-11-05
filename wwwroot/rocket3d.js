@@ -2,11 +2,11 @@
 function setRocket3DRotation(pitch, yaw, roll) {
     if (!rocket3dModel) return;
     // Swapped X/Z for correct orientation
-    rocket3dModel.rotation.order = 'ZYX'; // yaw→pitch→roll
+    rocket3dModel.rotation.order = 'ZYX'; // yaw -> pitch -> roll
 
     // Rotation of the rocket model
     rocket3dModel.rotation.z = THREE.MathUtils.degToRad(pitch || 0);  // roll (IMU Z)
-    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(yaw || 0); // pitch (IMU Y)
+    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(yaw || 0);    // pitch (IMU Y)
     rocket3dModel.rotation.x = THREE.MathUtils.degToRad(roll || 0);   // yaw (IMU X)
 }
 
@@ -63,8 +63,8 @@ function initRocket3D() {
 
     axesGroup = new THREE.Group();
 
-    // X axis (forward) - red 0x00ff00
-    const xMat = new THREE.MeshBasicMaterial({ color: 0x00ff00  , transparent: true, opacity: axesOpacity, depthTest: false });
+    // X axis (forward) - red
+    const xMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: axesOpacity, depthTest: false });
     const xGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const xAxis = new THREE.Mesh(xGeom, xMat);
     xAxis.position.set(axesLength / 2, -1.5, 0);
@@ -72,7 +72,7 @@ function initRocket3D() {
     axesGroup.add(xAxis);
 
     // Y axis (right) - green
-    const yMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: axesOpacity, depthTest: false });
+    const yMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: axesOpacity, depthTest: false });
     const yGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const yAxis = new THREE.Mesh(yGeom, yMat);
     yAxis.position.set(0, -1.5 + axesLength / 2, 0);
