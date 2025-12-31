@@ -13,9 +13,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 
 var app = builder.Build();
-app.UseDefaultFiles();
-app.UseStaticFiles();
 app.MapHub<TelemetryHub>("/telemetry");
+
+app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
+{
+    branch.UseDefaultFiles();
+    branch.UseStaticFiles();
+});
 
 var cts = new CancellationTokenSource();
 var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ?? (OperatingSystem.IsWindows() ? "COM4" : "/dev/ttyUSB0");

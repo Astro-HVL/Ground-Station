@@ -1,7 +1,6 @@
 ﻿html, body {
     margin: 0;
     height: 100vh;
-    background: url('bg/launch.jpeg') center center / cover no-repeat fixed;
     font-family: 'Segoe UI', sans-serif;
     overflow-x: hidden;
 }
