@@ -1,3 +1,9 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+console.log("rocket3d.js loaded");
+
+
 // Set the rocket's rotation from pitch, yaw, roll (degrees)
 function setRocket3DRotation(pitch, yaw, roll) {
     if (!rocket3dModel) return;
@@ -13,6 +19,8 @@ function setRocket3DRotation(pitch, yaw, roll) {
 let rocket3dScene, rocket3dCamera, rocket3dRenderer, rocket3dModel, axesGroup;
 
 function initRocket3D() {
+    console.log("initRocket3D ran");
+
     const container = document.getElementById('rocket3dContainer');
     rocket3dScene = new THREE.Scene();
     rocket3dCamera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
@@ -25,36 +33,94 @@ function initRocket3D() {
     container.appendChild(rocket3dRenderer.domElement);
 
     // ---------- Rocket ----------
-    const rocketGroup = new THREE.Group();
+//Ny kode som bruker GLB fil 
 
-    const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 2.2, 32);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
-    rocketGroup.add(body);
+// ---------- Rocket (GLB) ----------
+const rocketOffsetGroup = new THREE.Group();   // fast offset/alignment
+rocket3dScene.add(rocketOffsetGroup);
 
-    const noseGeometry = new THREE.ConeGeometry(0.22, 0.5, 32);
-    const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-    nose.position.y = 1.35;
-    rocketGroup.add(nose);
+const rocketRotationGroup = new THREE.Group(); // this one rotates with telemetry
+rocketOffsetGroup.add(rocketRotationGroup);
 
-    const finGeometry = new THREE.BoxGeometry(0.05, 0.4, 0.18);
-    const finMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    for (let i = 0; i < 3; i++) {
-        const fin = new THREE.Mesh(finGeometry, finMaterial);
-        fin.position.y = -1.1;
-        fin.position.x = Math.cos((i * 2 * Math.PI) / 3) * 0.18;
-        fin.position.z = Math.sin((i * 2 * Math.PI) / 3) * 0.18;
-        fin.rotation.y = (i * 2 * Math.PI) / 3;
-        rocketGroup.add(fin);
+rocket3dModel = rocketRotationGroup; // telemetry rotates THIS
+
+
+const loader = new GLTFLoader();
+loader.load(
+    '/models/Rocket.glb',
+    (gltf) => {
+        console.log("GLB Loaded")
+        const model = gltf.scene;
+
+        // Optional: better look
+        model.traverse((obj) => {
+            if (obj.isMesh) {
+                obj.castShadow = false;
+                obj.receiveShadow = false;
+            }
+        });
+
+     // Add model to the rotation group (telemetry rotates this one)
+rocketRotationGroup.add(model);
+
+
+
+// Apply fixed alignment + scale on the offset group (so telemetry doesn't overwrite it)
+rocketOffsetGroup.rotation.z = 0;
+rocketOffsetGroup.scale.setScalar(0.3);
+// --- Place the whole rocket nicely at the origin (world space) ---
+rocket3dScene.updateMatrixWorld(true);
+
+const box = new THREE.Box3().setFromObject(rocketOffsetGroup);
+const center = box.getCenter(new THREE.Vector3());
+
+// Center in X/Z
+rocketOffsetGroup.position.x -= center.x;
+rocketOffsetGroup.position.z -= center.z;
+
+// Put bottom at y = 0
+rocketOffsetGroup.position.y -= box.min.y;
+
+
+    },
+    undefined,
+    (error) => {
+        console.error("Error loading Rocket.glb", error);
     }
+);
+
+
+    // -----Under gammel kode fra Bendik -----
+    //const rocketGroup = new THREE.Group();
+
+    //const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 2.2, 32);
+    //const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    //const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    //rocketGroup.add(body);
+
+    //const noseGeometry = new THREE.ConeGeometry(0.22, 0.5, 32);
+    //const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    //const nose = new THREE.Mesh(noseGeometry, noseMaterial);
+    //nose.position.y = 1.35;
+    //rocketGroup.add(nose);
+
+    //const finGeometry = new THREE.BoxGeometry(0.05, 0.4, 0.18);
+    //const finMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+   // for (let i = 0; i < 3; i++) {
+        //const fin = new THREE.Mesh(finGeometry, finMaterial);
+        //fin.position.y = -1.1;
+        //fin.position.x = Math.cos((i * 2 * Math.PI) / 3) * 0.18;
+       // fin.position.z = Math.sin((i * 2 * Math.PI) / 3) * 0.18;
+        //fin.rotation.y = (i * 2 * Math.PI) / 3;
+      //  rocketGroup.add(fin);
+    //}
 
     // Rotate rocket 90° so it points along X instead of Y
-    rocketGroup.rotation.z = -Math.PI / 2;
+    //rocketGroup.rotation.z = -Math.PI / 2;
 
-    rocketGroup.scale.set(1.3, 1.3, 1.3);
-    rocket3dScene.add(rocketGroup);
-    rocket3dModel = rocketGroup;
+    //rocketGroup.scale.set(1.3, 1.3, 1.3);
+    //rocket3dScene.add(rocketGroup);
+    //rocket3dModel = rocketGroup;
 
     // ---------- Fixed world axes (bigger & slightly lower) ----------
     const axesLength = 1.8;
@@ -115,3 +181,7 @@ function animateRocket3D() {
     requestAnimationFrame(animateRocket3D);
     rocket3dRenderer.render(rocket3dScene, rocket3dCamera);
 }
+
+// Expose functions globally so live_data.js can call them
+window.initRocket3D = initRocket3D;
+window.setRocket3DRotation = setRocket3DRotation;

@@ -4,10 +4,22 @@
   <meta charset="utf-8" />
   <title>Live Telemetry</title>
   <link rel="stylesheet" href="style.css">
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
-  <script src="rocket3d.js"></script>
+
+  <!-- ✅ Three.js via ES Modules + importmap (required for GLTFLoader jsm) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- ✅ Rocket renderer (module) -->
+  <script type="module" src="rocket3d.js"></script>
 </head>
 <body>
 

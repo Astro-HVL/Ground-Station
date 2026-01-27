@@ -281,7 +281,13 @@ document.addEventListener('DOMContentLoaded', () => {
     setStatus('3D not found');
   }
 
-  createAltChart();
+createAltChart();
+setActiveMode('on');
+
+// Skip SignalR when running from simple static server (python http.server)
+if (window.location.port !== '8000') {
   startConn();
-  setActiveMode('on'); // default: System Check
+} else {
+  setStatus('static preview (SignalR disabled)');
+}
 });
