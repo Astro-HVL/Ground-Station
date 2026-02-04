@@ -33,7 +33,8 @@
       </div>
       <div id="top-right" style="flex:0 0 28%; display:flex; justify-content:flex-end;">
         <!-- 3D rocket (top-right) as a single white circular tile -->
-        <div id="rocket3dContainer" class="white-circle hero-circle" style="width:260px; height:260px; display:flex; align-items:center; justify-content:center; background:#ffffff; border:1px solid rgba(0,0,0,0.06);">
+        <div id="rocket3dContainer" class="white-circle hero-circle" style="width:260px; height:260px; display:flex; align-items:center; justify-content:center; background: linear-gradient(135deg, #000000, #3533cd); border:1px solid rgba(0,0,0,0.06);">
+      <!---  <div id="rocket3dContainer" class="white-circle hero-circle" style="width:260px; height:260px; display:flex; align-items:center; justify-content:center; background:#ffffff; border:1px solid rgba(0,0,0,0.06);"> --->
         </div>
       </div>
     </div>
@@ -43,7 +44,8 @@
       <!-- Left section: Mode info -->
       <div class="mode-section">
       <div style="color:#fff; font-size:36px; margin-bottom:6px;">Rocket mode:</div>
-      <div class="mode-pill" style="background:#0f1b49">
+      <!---<div class="mode-pill" style="background:#0f1b49"> --->
+      <div class="mode-pill" style="background: linear-gradient(135deg, #000000, #3533cd);">
         <div id="modeOn" class="mode-box">System Check</div>
         <div id="modeReady" class="mode-box">Operation Ready</div>
         <div id="modePending" class="mode-box">Lift-off</div>
@@ -53,17 +55,17 @@
       </div>
 
       <div id="bottom-right" style="display:flex; gap:30px; align-items:flex-end;">
-        <div class="white-circle hero-circle">
+        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">
           <div class="metric-title">Height</div>
           <div class="metric-value" id="circleAltValue">-</div>
           <div class="metric-unit">m</div>
         </div>
-        <div class="white-circle hero-circle">
+        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">
           <div class="metric-title">Speed</div>
           <div class="metric-value" id="circleVelValue">-</div>
           <div class="metric-unit">m/s</div>
         </div>
-        <div class="white-circle hero-circle">  
+        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">  
           <div class="metric-title">Accel</div>
           <div class="metric-value" id="circleGValue">-</div>
           <div class="metric-unit">G</div>
