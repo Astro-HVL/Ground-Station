@@ -10,6 +10,10 @@
   const ION_TOKEN =
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZDEzYmIxOS0yNDk0LTQ0NDItYjNlNy03NWU4Y2I4N2EzY2IiLCJpZCI6MzUyMDI0LCJpYXQiOjE3NjA5MDUyMTR9.aAyv_MXnZaN9y2QgSNRglNe5JyAMouG9lnoXJtJ-61E";
   Cesium.Ion.defaultAccessToken = ION_TOKEN;
+  const serverBase =
+    window.location.protocol === "file:" || window.location.origin === "null"
+      ? "http://localhost:5242"
+      : window.location.origin;
 
   /**
    * Launch site (degrees + meters). Used as the ENU origin.
@@ -39,6 +43,10 @@
     interpolationAlgorithm: Cesium.LinearApproximation,
     interpolationDegree: 1,
   });
+  position.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+  position.forwardExtrapolationDuration = Number.POSITIVE_INFINITY;
+  position.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+  position.backwardExtrapolationDuration = Number.POSITIVE_INFINITY;
   const initialTime = Cesium.JulianDate.now();
   const initialTime2 = Cesium.JulianDate.addSeconds(
     initialTime,
@@ -83,7 +91,7 @@
     position,
     path: rocketPathStyle,
     model: {
-      uri: "models/Rocket.glb",
+      uri: `${serverBase}/models/Rocket.glb`,
       minimumPixelSize: 32,
       maximumScale: 500,
       silhouetteColor: Cesium.Color.WHITE,
@@ -98,6 +106,7 @@
   viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
   viewer.clock.multiplier = 1;
   viewer.clock.shouldAnimate = true;
+  viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
  
 
   /**
@@ -161,12 +170,55 @@
   }
 
   /**
+   * Parse CSV telemetry string into an object.
+   * Format: t,millis,ax,ay,az,pitch,yaw,roll,alt,vel,batV,lat,lon,state,rssi
+   * @param {string} csvLine - Raw CSV string from telemetry
+   * @returns {object | null}
+   */
+  function parseTelemetry(csvLine) {
+    if (typeof csvLine !== 'string') return null;
+    
+    // Remove "RX: " prefix if present
+    const cleaned = csvLine.replace(/^RX:\s*/, '').trim();
+    const parts = cleaned.split(',');
+    
+    if (parts.length < 15) {
+      console.warn('Invalid telemetry format:', csvLine);
+      return null;
+    }
+    
+    return {
+      type: 'telemetry',
+      t: parseFloat(parts[0]),      // time (seconds)
+      millis: parseInt(parts[1]),    // milliseconds
+      ax: parseFloat(parts[2]),      // acceleration X
+      ay: parseFloat(parts[3]),      // acceleration Y
+      az: parseFloat(parts[4]),      // acceleration Z
+      pitch: parseFloat(parts[5]),   // pitch (degrees)
+      yaw: parseFloat(parts[6]),     // yaw (degrees)
+      roll: parseFloat(parts[7]),    // roll (degrees)
+      alt: parseFloat(parts[8]),     // altitude
+      vel: parseFloat(parts[9]),     // velocity
+      batV: parseFloat(parts[10]),   // battery voltage
+      lat: parseFloat(parts[11]),    // latitude
+      lon: parseFloat(parts[12]),    // longitude
+      state: parseInt(parts[13]),    // state
+      rssi: parseInt(parts[14])      // RSSI
+    };
+  }
+
+  /**
    * Move the rocket based on a telemetry sample.
    * Expected fields (numbers): t, ax, ay, az, pitch, roll, yaw, vel, lat, lon, alt
    * @param {object} sample
    */
   function moveAlongCsvData(sample) {
-    if (!sample || sample.type !== "telemetry") return;
+    console.log("Processing sample:", sample);
+    
+    if (!sample || sample.type !== "telemetry") {
+      console.warn("Sample rejected - wrong type or null");
+      return;
+    }
 
     const t = toNumber(sample.t);
     const ax = toNumber(sample.ax) ?? 0;
@@ -177,7 +229,12 @@
     const roll = toNumber(sample.roll) ?? 0;
     const vel = toNumber(sample.vel);
 
-    if (t === null) return;
+    console.log(`t=${t}, ax=${ax}, ay=${ay}, az=${az}, yaw=${yaw}, pitch=${pitch}, vel=${vel}`);
+
+    if (t === null) {
+      console.warn("Invalid time value");
+      return;
+    }
 
     if (motionState.t0 === null) {
       motionState.t0 = t;
@@ -214,6 +271,8 @@
       deltaPos,
       motionState.posENU,
     );
+
+    console.log(`Position ENU: x=${motionState.posENU.x.toFixed(2)}, y=${motionState.posENU.y.toFixed(2)}, z=${motionState.posENU.z.toFixed(2)}`);
 
     // Convert to world coordinates and add to Cesium.
     const posFixed = enuToEcef(
@@ -254,18 +313,33 @@
     window.moveAlongCsvData = moveAlongCsvData;
   }
 
-
-
   const connection = new signalR.HubConnectionBuilder()
-    .withUrl("/telemetry")
+    .withUrl(`${serverBase}/telemetry`)
     .withAutomaticReconnect()
     .build();
 
   connection.on("telemetry", (payload) => {
-    moveAlongCsvData(payload);
+    if (payload?.type === "telemetry") {
+      moveAlongCsvData(payload);
+      return;
+    }
+
+    if (payload?.type === "raw" && typeof payload.raw === "string") {
+      const parsed = parseTelemetry(payload.raw);
+      if (parsed) moveAlongCsvData(parsed);
+      return;
+    }
+
+    if (typeof payload === "string") {
+      const parsed = parseTelemetry(payload);
+      if (parsed) moveAlongCsvData(parsed);
+      return;
+    }
+
+    console.warn("Unhandled telemetry payload:", payload);
   });
 
   connection.start().catch((err) => {
     console.error("SignalR start failed:", err);
   });
-})(); 
+})();

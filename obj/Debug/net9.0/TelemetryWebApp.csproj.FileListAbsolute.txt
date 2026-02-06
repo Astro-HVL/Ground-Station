@@ -119,4 +119,4 @@ C:/Users/bendi/OneDrive - Høgskulen på Vestlandet/Skrivebord/TelemetryWebApp/o
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/mdlq1jbe1b-a6m94tg78p.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/b1ltfyczlz-qffelvd9ls.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/6xi7fqtaav-iqqz8s68ox.gz
-/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/de4o8suvld-727j5iga0p.gz
+/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/de4o8suvld-uyjtrzclyu.gz

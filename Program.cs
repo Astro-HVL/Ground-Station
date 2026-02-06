@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,10 +16,17 @@ builder.Services.AddSignalR();
 var app = builder.Build();
 app.MapHub<TelemetryHub>("/telemetry");
 
+var contentTypeProvider = new FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".glb"] = "model/gltf-binary";
+contentTypeProvider.Mappings[".gltf"] = "model/gltf+json";
+
 app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
 {
     branch.UseDefaultFiles();
-    branch.UseStaticFiles();
+    branch.UseStaticFiles(new StaticFileOptions
+    {
+        ContentTypeProvider = contentTypeProvider
+    });
 });
 
 var cts = new CancellationTokenSource();
