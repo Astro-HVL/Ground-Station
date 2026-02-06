@@ -143,7 +143,7 @@
    * Expected fields (numbers): t, ax, ay, az, pitch, roll, yaw, vel, lat, lon, alt
    * @param {object} sample
    */
-  function moveAlongVscData(sample) {
+  function moveAlongCsvData(sample) {
     if (!sample || sample.type !== "telemetry") return;
 
     const t = toNumber(sample.t);
@@ -239,9 +239,22 @@
 
   // Expose the function so you can call it from SignalR or the console.
   if (typeof window !== "undefined") {
-    window.moveAlongVscData = moveAlongVscData;
+    window.moveAlongCsvData = moveAlongCsvData;
   }
 
   // Optional initial camera move.
   viewer.zoomTo(rocket);
+
+  const connection = new signalR.HubConnectionBuilder()
+    .withUrl("/telemetry")
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on("telemetry", (payload) => {
+    moveAlongCsvData(payload);
+  });
+
+  connection.start().catch((err) => {
+    console.error("SignalR start failed:", err);
+  });
 })();
