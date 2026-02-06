@@ -22,7 +22,12 @@ app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
 });
 
 var cts = new CancellationTokenSource();
-var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ?? (OperatingSystem.IsWindows() ? "COM4" : "/dev/ttyUSB0");
+var portName = Environment.GetEnvironmentVariable("TELEM_PORT")
+    ?? (OperatingSystem.IsWindows()
+        ? "COM4"
+        : OperatingSystem.IsMacOS()
+            ? "/dev/tty.usbmodem187151401"
+            : "/dev/ttyUSB0");
 var baud = int.TryParse(Environment.GetEnvironmentVariable("TELEM_BAUD"), out var b) ? b : 115200;
 
 var hub = app.Services.GetRequiredService<IHubContext<TelemetryHub>>();

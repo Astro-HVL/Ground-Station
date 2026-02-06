@@ -39,6 +39,27 @@
     interpolationAlgorithm: Cesium.LinearApproximation,
     interpolationDegree: 1,
   });
+  const initialTime = Cesium.JulianDate.now();
+  const initialTime2 = Cesium.JulianDate.addSeconds(
+    initialTime,
+    1,
+    new Cesium.JulianDate(),
+  );
+  const initialPos = Cesium.Cartesian3.fromDegrees(
+    launchSite.lon,
+    launchSite.lat,
+    launchSite.h,
+  );
+  position.addSample(initialTime, initialPos);
+  position.addSample(initialTime2, initialPos);
+
+  viewer.clock.startTime = initialTime.clone();
+  viewer.clock.currentTime = initialTime.clone();
+  viewer.clock.stopTime = Cesium.JulianDate.addSeconds(
+    initialTime,
+    120,
+    new Cesium.JulianDate(),
+  );
 
   /**
    * Style for the flight path.
@@ -70,13 +91,14 @@
     },
   });
   viewer.trackedEntity = rocket;
-
+  viewer.zoomTo(rocket);
   /**
    * Keep the timeline moving in real-time.
    */
   viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
   viewer.clock.multiplier = 1;
   viewer.clock.shouldAnimate = true;
+ 
 
   /**
    * ENU (east-north-up) transform for our local origin.
@@ -157,17 +179,7 @@
 
     if (t === null) return;
 
-    // If the first sample has lat/lon/alt, use it as the origin.
-    if (motionState.lastT === null) {
-      const lat = toNumber(sample.lat);
-      const lon = toNumber(sample.lon);
-      const alt = toNumber(sample.alt);
-      if (lat !== null && lon !== null && alt !== null) {
-        launchSite = { lon, lat, h: alt };
-        originFixed = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
-        enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(originFixed);
-      }
-
+    if (motionState.t0 === null) {
       motionState.t0 = t;
       motionState.startTime = Cesium.JulianDate.now();
 
@@ -242,8 +254,7 @@
     window.moveAlongCsvData = moveAlongCsvData;
   }
 
-  // Optional initial camera move.
-  viewer.zoomTo(rocket);
+
 
   const connection = new signalR.HubConnectionBuilder()
     .withUrl("/telemetry")
@@ -257,4 +268,4 @@
   connection.start().catch((err) => {
     console.error("SignalR start failed:", err);
   });
-})();
+})(); 
