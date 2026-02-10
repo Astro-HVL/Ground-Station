@@ -115,8 +115,8 @@ C:/Users/bendi/OneDrive - Høgskulen på Vestlandet/Skrivebord/TelemetryWebApp/o
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/rr86fukgiu-k4v2vh3107.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/j9jg6y81z0-hspbyyvdtp.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/gnuv8hj9mb-xet514fxei.gz
-/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/lu72tba0zr-iid9914ro0.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/mdlq1jbe1b-a6m94tg78p.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/b1ltfyczlz-qffelvd9ls.gz
 /Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/6xi7fqtaav-iqqz8s68ox.gz
-/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/de4o8suvld-uyjtrzclyu.gz
+/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/de4o8suvld-17s8v4y7bw.gz
+/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/Debug/net9.0/compressed/lu72tba0zr-engejhsflt.gz
