@@ -3,22 +3,37 @@ const connection = new signalR.HubConnectionBuilder()
     .withAutomaticReconnect()
     .build();
 
-const debug = document.getElementById('debug');
-function dbg(s){
-  debug.textContent = s + "\n" + debug.textContent;
-  if(debug.textContent.length>8000) debug.textContent = debug.textContent.slice(0,8000);
+const debugEl = document.getElementById('debug');
+function dbg(message) {
+  if (debugEl) {
+    debugEl.textContent = `${message}\n${debugEl.textContent}`;
+    if (debugEl.textContent.length > 8000) {
+      debugEl.textContent = debugEl.textContent.slice(0, 8000);
+    }
+  } else {
+    console.debug(message);
+  }
 }
-const BLINK_AZ_THRESHOLD = -1.50;
+
+const BLINK_PITCH_THRESHOLD_DEG = -1.5;
+const MAX_DATA_POINTS = 2000;
+
 // DOM elements
 const valTime = document.getElementById('val_time');
-const valSeq  = document.getElementById('val_seq');
-const valAx   = document.getElementById('val_ax');
-const valAy   = document.getElementById('val_ay');
-const valAz   = document.getElementById('val_az');
-const valPitch= document.getElementById('val_pitch');
+const valSeq = document.getElementById('val_seq');
+const valAx = document.getElementById('val_ax');
+const valAy = document.getElementById('val_ay');
+const valAz = document.getElementById('val_az');
+const valPitch = document.getElementById('val_pitch');
 const valRoll = document.getElementById('val_roll');
-const valYaw  = document.getElementById('val_yaw');
-
+const valYaw = document.getElementById('val_yaw');
+const valTemp = document.getElementById('val_temp');
+const valVel = document.getElementById('val_vel');
+const valPress = document.getElementById('val_press');
+const valLat = document.getElementById('val_lat');
+const valLon = document.getElementById('val_lon');
+const valAlt = document.getElementById('val_alt');
+const timerValueEl = document.getElementById('timerValue');
 
 // Visualization DOM elements (top-level)
 const pitchViz = document.getElementById('pitchViz');
@@ -28,23 +43,27 @@ const pitchValue = document.getElementById('pitchValue');
 const yawValue = document.getElementById('yawValue');
 const rollValue = document.getElementById('rollValue');
 
+const dashboardTitle = document.querySelector('h1');
+const defaultDashboardTitle = dashboardTitle ? dashboardTitle.textContent : '';
+
 // Draw default orientation figures (0 deg) on page load
 window.addEventListener('DOMContentLoaded', () => {
   if (pitchViz) drawRocket(pitchViz.getContext('2d'), 0);
   if (yawViz) drawRocket(yawViz.getContext('2d'), 0);
   if (rollViz) drawRoll(rollViz.getContext('2d'), 0);
-  if (pitchValue) pitchValue.textContent = '0.00 °';
-  if (yawValue) yawValue.textContent = '0.00 °';
-  if (rollValue) rollValue.textContent = '0.00 °';
+  if (pitchValue) pitchValue.textContent = '0.00 \u00B0';
+  if (yawValue) yawValue.textContent = '0.00 \u00B0';
+  if (rollValue) rollValue.textContent = '0.00 \u00B0';
 });
 
 function drawRocket(ctx, angleDeg) {
   // Draw a simple rocket shape centered and rotated by angleDeg
-  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
   ctx.clearRect(0, 0, w, h);
   ctx.save();
-  ctx.translate(w/2, h/2);
-  ctx.rotate(angleDeg * Math.PI / 180);
+  ctx.translate(w / 2, h / 2);
+  ctx.rotate((angleDeg * Math.PI) / 180);
   ctx.beginPath();
   ctx.moveTo(0, -40); // nose
   ctx.lineTo(12, 20); // right body
@@ -65,18 +84,19 @@ function drawRocket(ctx, angleDeg) {
 
 function drawRoll(ctx, angleDeg) {
   // Draw a circle with a line indicating roll angle
-  const w = ctx.canvas.width, h = ctx.canvas.height;
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
   ctx.clearRect(0, 0, w, h);
   ctx.save();
-  ctx.translate(w/2, h/2);
+  ctx.translate(w / 2, h / 2);
   ctx.beginPath();
-  ctx.arc(0, 0, 32, 0, 2*Math.PI);
+  ctx.arc(0, 0, 32, 0, 2 * Math.PI);
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = 4;
   ctx.stroke();
   // Draw roll indicator line
   ctx.save();
-  ctx.rotate(angleDeg * Math.PI / 180);
+  ctx.rotate((angleDeg * Math.PI) / 180);
   ctx.beginPath();
   ctx.moveTo(0, 0);
   ctx.lineTo(0, -32);
@@ -87,7 +107,7 @@ function drawRoll(ctx, angleDeg) {
   // Draw 3 small lines for reference
   for (let i = 0; i < 3; i++) {
     ctx.save();
-    ctx.rotate((i * 120) * Math.PI / 180);
+    ctx.rotate(((i * 120) * Math.PI) / 180);
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, -40);
@@ -100,397 +120,300 @@ function drawRoll(ctx, angleDeg) {
 }
 
 function updateOrientationVisuals(pitch, yaw, roll) {
-  if (pitchViz && typeof pitch === 'number' && !isNaN(pitch)) drawRocket(pitchViz.getContext('2d'), pitch);
-  if (yawViz && typeof yaw === 'number' && !isNaN(yaw)) drawRocket(yawViz.getContext('2d'), yaw);
-  if (rollViz && typeof roll === 'number' && !isNaN(roll)) drawRoll(rollViz.getContext('2d'), roll);
-  if (pitchValue && typeof pitch === 'number' && !isNaN(pitch)) pitchValue.textContent = pitch.toFixed(2) + ' °';
-  if (yawValue && typeof yaw === 'number' && !isNaN(yaw)) yawValue.textContent = yaw.toFixed(2) + ' °';
-  if (rollValue && typeof roll === 'number' && !isNaN(roll)) rollValue.textContent = roll.toFixed(2) + ' °';
-}
-const valTemp = document.getElementById('val_temp');
-const valVel  = document.getElementById('val_vel');
-const valPress= document.getElementById('val_press');
-const valLat  = document.getElementById('val_lat');
-const valLon  = document.getElementById('val_lon');
-const valAlt  = document.getElementById('val_alt');
-
-// === BLINK VARS ===
-let blinkActive = false;
-let blinkInterval = null;
-
-function startBlinking(){
-  if (!blinkActive){
-    blinkActive = true;
-    document.body.classList.add("blink-red");
+  if (pitchViz && Number.isFinite(pitch)) {
+    drawRocket(pitchViz.getContext('2d'), pitch);
   }
-}
-function stopBlinking(){
-  if (blinkActive){
-    blinkActive = false;
-    document.body.classList.remove("blink-red");
+  if (yawViz && Number.isFinite(yaw)) {
+    drawRocket(yawViz.getContext('2d'), yaw);
+  }
+  if (rollViz && Number.isFinite(roll)) {
+    drawRoll(rollViz.getContext('2d'), roll);
+  }
+  if (pitchValue && Number.isFinite(pitch)) {
+    pitchValue.textContent = `${pitch.toFixed(2)} \u00B0`;
+  }
+  if (yawValue && Number.isFinite(yaw)) {
+    yawValue.textContent = `${yaw.toFixed(2)} \u00B0`;
+  }
+  if (rollValue && Number.isFinite(roll)) {
+    rollValue.textContent = `${roll.toFixed(2)} \u00B0`;
   }
 }
 
-// charts
-let velChart, altChart, accChart, orientChart, tempChart, pressChart;
-function createCharts(){
-  
-// velocity chart
-const ctx1 = document.getElementById('velChart').getContext('2d');
-velChart = new Chart(ctx1, {
-  type: 'line',
-  data: {
-    labels: [], // fylles med sekunder
-    datasets: [
-      { 
-        label:'Velocity (m/s)', 
-        data:[], 
-        borderColor:'goldenrod', 
-        borderWidth: 2,
-        fill:false, 
-        yAxisID:'y_vel', 
-        pointRadius:1 
-      }
-    ]
-  },
-  options: { 
-    animation:false, 
-    responsive:false, 
-    maintainAspectRatio: true, 
-    scales:{ 
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y_vel:{
-        title:{ display:true, text:'Velocity (m/s)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
-
-// altitude chart
-const ctx2 = document.getElementById('altChart').getContext('2d');
-altChart = new Chart(ctx2, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { 
-        label:'Altitude (m)', 
-        data:[], 
-        borderColor:'Magenta', 
-        fill:false, 
-        yAxisID:'y_alt', 
-        pointRadius:1 
-      }
-    ]
-  },
-  options: { 
-    animation:false, 
-    responsive:false, 
-    maintainAspectRatio: true, 
-    scales:{ 
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y_alt:{
-        title:{ display:true, text:'Altitude (m)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
-
-
-// temperature chart
-const ctxTemp = document.getElementById('tempChart').getContext('2d');
-tempChart = new Chart(ctxTemp, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label:'Temperature (\u00B0C)', data:[], borderColor:'brown', fill:false, pointRadius:1 }
-    ]
-  },
-  options: {
-    animation:false,
-    responsive:false,
-    maintainAspectRatio: true,
-    scales: {
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y: {
-        title:{ display:true, text:'Temp (\u00B0C)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
-
-// pressure chart
-const ctxPress = document.getElementById('pressChart').getContext('2d');
-pressChart = new Chart(ctxPress, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label:'Pressure: ', data:[], borderColor:'gray', fill:false, pointRadius:1 }
-    ]
-  },
-  options: {
-    animation:false,
-    responsive:false,
-    maintainAspectRatio: true,
-    scales: {
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y: {
-        title:{ display:true, text:'Pressure (atm)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
-
-// acceleration chart
-const ctx4 = document.getElementById('accChart').getContext('2d');
-accChart = new Chart(ctx4, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label: 'ax', data: [], borderColor:'red', fill:false, pointRadius:1 },
-      { label: 'ay', data: [], borderColor:'green', fill:false, pointRadius:1 },
-      { label: 'az', data: [], borderColor:'blue', fill:false, pointRadius:1 }
-    ]
-  },
-  options: { 
-    animation:false, 
-    responsive:false, 
-    maintainAspectRatio: true, 
-    scales:{ 
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y: {
-        title:{ display:true, text:'Acceleration (g)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
-
-// orientation chart
-const ctx5 = document.getElementById('orientChart').getContext('2d');
-orientChart = new Chart(ctx5, {
-  type: 'line',
-  data: {
-    labels: [],
-    datasets: [
-      { label:'Pitch', data:[], borderColor:'orange', fill:false, pointRadius:1 },
-      { label:'Roll',  data:[], borderColor:'purple', fill:false, pointRadius:1 },
-      { label:'Yaw',   data:[], borderColor:'teal', fill:false, pointRadius:1 }
-    ]
-  },
-  options: { 
-    animation:false, 
-    responsive:false, 
-    maintainAspectRatio: true,
-    scales:{
-      x:{ 
-        display:true, 
-        min: 0,
-        title:{ display:true, text:'Time (s)', font:{ size:20 }, color:'#fff' },
-        ticks: { font: { size: 14 }, color:'#fff', callback: function(value, index) {
-        const label = this.getLabelForValue(index);
-        if (!label) return '';
-          return parseFloat(label); 
-        }
-      }
-      },
-      y: {
-        title:{ display:true, text:'Orientation (°)', font:{ size:20 }, color:'#fff' },
-        ticks:{ font:{ size:14 }, color:'#fff' }
-      }
-    },
-    plugins:{ legend:{ labels:{ font:{ size:20 } } } }
-  }
-});
+function formatNumber(value, digits) {
+  return Number.isFinite(value) ? Number(value).toFixed(digits) : '-';
 }
 
-function updateLatest(tMs, seq, ax, ay, az, pitch, roll, yaw, temp, vel, press, lat, lon, alt) {
-  const timeStr = (Number(tMs)/1000).toFixed(3) + " s";
-  valTime.textContent = timeStr;
-  // Update timer value at top
-  const timerValue = document.getElementById('timerValue');
-  if (timerValue) timerValue.textContent = timeStr;
-  valSeq.textContent = seq ?? '-';
-  valAx.textContent = (ax !== undefined ? Number(ax).toFixed(3) : '-');
-  valAy.textContent = (ay !== undefined ? Number(ay).toFixed(3) : '-');
-  valAz.textContent = (az !== undefined ? Number(az).toFixed(3) : '-');
-  valPitch.textContent = (pitch !== undefined ? Number(pitch).toFixed(2) : '-');
-  valRoll.textContent = (roll !== undefined ? Number(roll).toFixed(2) : '-');
-  valYaw.textContent = (yaw !== undefined ? Number(yaw).toFixed(2) : '-');
-  valTemp.textContent = (temp !== undefined ? Number(temp).toFixed(2) : '-');
-  valVel.textContent = (vel !== undefined ? Number(vel).toFixed(2) : '-');
-  valPress.textContent = (press !== undefined ? Number(press).toFixed(1) : '-');
-  valLat.textContent = (lat !== undefined ? (Number(lat)/1e6).toFixed(6) : '-');
-  valLon.textContent = (lon !== undefined ? (Number(lon)/1e6).toFixed(6) : '-');
-  valAlt.textContent = (alt !== undefined ? Number(alt).toFixed(0) : '-');
+function updateBlinkState(pitchDeg) {
+  const warning = Number.isFinite(pitchDeg) && pitchDeg <= BLINK_PITCH_THRESHOLD_DEG;
+  document.body.classList.toggle('blink-red', warning);
+  if (dashboardTitle) {
+    dashboardTitle.textContent = warning ? 'WARNING: Altitude dropping' : defaultDashboardTitle;
+  }
+}
 
-  // Update chart labels with live data
-  if (velChart && velChart.data && velChart.data.datasets[0]) {
-    velChart.data.datasets[0].label = `Velocity: ${vel !== undefined ? Number(vel).toFixed(2) : '-'} m/s`;
+function updateLatest(timeSec, seqValue, ax, ay, az, pitch, roll, yaw, temp, vel, press, lat, lon, alt) {
+  const timeStr = Number.isFinite(timeSec) ? `${timeSec.toFixed(3)} s` : '-';
+  if (valTime) valTime.textContent = timeStr;
+  if (timerValueEl) timerValueEl.textContent = timeStr;
+  if (valSeq) valSeq.textContent = seqValue ?? '-';
+  if (valAx) valAx.textContent = formatNumber(ax, 3);
+  if (valAy) valAy.textContent = formatNumber(ay, 3);
+  if (valAz) valAz.textContent = formatNumber(az, 3);
+  if (valPitch) valPitch.textContent = formatNumber(pitch, 2);
+  if (valRoll) valRoll.textContent = formatNumber(roll, 2);
+  if (valYaw) valYaw.textContent = formatNumber(yaw, 2);
+  if (valTemp) valTemp.textContent = formatNumber(temp, 2);
+  if (valVel) valVel.textContent = formatNumber(vel, 2);
+  if (valPress) valPress.textContent = formatNumber(press, 3);
+  if (valLat) {
+    valLat.textContent = Number.isFinite(lat) ? (Number(lat) / 1e6).toFixed(6) : '-';
   }
-  if (altChart && altChart.data && altChart.data.datasets[0]) {
-    altChart.data.datasets[0].label = `Altitude: ${alt !== undefined ? Number(alt).toFixed(0) : '-'} m`;
+  if (valLon) {
+    valLon.textContent = Number.isFinite(lon) ? (Number(lon) / 1e6).toFixed(6) : '-';
   }
-  if (accChart && accChart.data && accChart.data.datasets[0]) {
-    accChart.data.datasets[0].label = `ax (g)`;
-    accChart.data.datasets[1].label = `ay (g)`;
-    accChart.data.datasets[2].label = `az (g)`;
+  if (valAlt) valAlt.textContent = Number.isFinite(alt) ? Number(alt).toFixed(0) : '-';
+
+  if (typeof setRocket3DRotation === 'function') {
+    setRocket3DRotation(pitch, yaw, roll);
   }
-  if (orientChart && orientChart.data && orientChart.data.datasets[0]) {
-    orientChart.data.datasets[0].label = `Pitch (°)`;
-    orientChart.data.datasets[1].label = `Roll (°)`;
-    orientChart.data.datasets[2].label = `Yaw (°)`;
-  }
-  if (tempChart && tempChart.data && tempChart.data.datasets[0]) {
-    tempChart.data.datasets[0].label = `Temperature: ${temp !== undefined ? Number(temp).toFixed(2) : '-'} °C`;
-  }
-  if (pressChart && pressChart.data && pressChart.data.datasets[0]) {
-    pressChart.data.datasets[0].label = `Pressure: ${press !== undefined ? Number(press).toFixed(3) : '-'} atm`;
-  }
-  // Update orientation visualizations
+
   updateOrientationVisuals(pitch, yaw, roll);
-  // Update 3D model orientation
-  if (typeof setRocket3DRotation === 'function') {
-    setRocket3DRotation(pitch, yaw, roll);
+
+  if (velChart?.data?.datasets?.[0]) {
+    velChart.data.datasets[0].label = `Velocity: ${formatNumber(vel, 2)} m/s`;
   }
-  // Update 3D rocket orientation if available
-  if (typeof setRocket3DRotation === 'function') {
-    setRocket3DRotation(pitch, yaw, roll);
+  if (altChart?.data?.datasets?.[0]) {
+    altChart.data.datasets[0].label = `Altitude: ${formatNumber(alt, 0)} m`;
+  }
+  if (orientChart?.data?.datasets?.length === 3) {
+    orientChart.data.datasets[0].label = 'Pitch (\u00B0)';
+    orientChart.data.datasets[1].label = 'Roll (\u00B0)';
+    orientChart.data.datasets[2].label = 'Yaw (\u00B0)';
+  }
+  if (tempChart?.data?.datasets?.[0]) {
+    tempChart.data.datasets[0].label = `Temperature: ${formatNumber(temp, 2)} \u00B0C`;
+  }
+  if (pressChart?.data?.datasets?.[0]) {
+    pressChart.data.datasets[0].label = `Pressure: ${formatNumber(press, 3)} atm`;
   }
 }
 
-function pushToCharts(ax, ay, az, pitch, roll, yaw, temp, vel, press, alt) {
-  const maxPoints = 100000000;
-  const tLabel = valTime.textContent || '';  // bruk tid fra mikrokontrolleren
+let velChart;
+let altChart;
+let accChart;
+let orientChart;
+let tempChart;
+let pressChart;
 
-  // velocity
-  velChart.data.labels.push(tLabel);
-  velChart.data.datasets[0].data.push(vel);
-  if (velChart.data.labels.length > maxPoints) { 
-    velChart.data.labels.shift(); 
-    velChart.data.datasets.forEach(ds => ds.data.shift()); 
+function createCharts() {
+  const xAxisOptions = {
+    display: true,
+    min: 0,
+    title: { display: true, text: 'Time (s)', font: { size: 20 }, color: '#fff' },
+    ticks: {
+      font: { size: 14 },
+      color: '#fff',
+      callback(value, index, ticks) {
+        const label = this.getLabelForValue(index);
+        return label ? Number(label).toFixed(3) : '';
+      }
+    }
+  };
+
+  const baseOptions = {
+    animation: false,
+    responsive: false,
+    maintainAspectRatio: true,
+    plugins: { legend: { labels: { font: { size: 20 }, color: '#fff' } } }
+  };
+
+  const velCanvas = document.getElementById('velChart');
+  if (velCanvas) {
+    const ctx = velCanvas.getContext('2d');
+    velChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Velocity (m/s)', data: [], borderColor: 'goldenrod', borderWidth: 2, fill: false, yAxisID: 'y_vel', pointRadius: 1 }]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y_vel: { title: { display: true, text: 'Velocity (m/s)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  velChart.update('none');
 
-  // altitude
-  altChart.data.labels.push(tLabel);
-  altChart.data.datasets[0].data.push(alt);
-  if (altChart.data.labels.length > maxPoints) { 
-    altChart.data.labels.shift(); 
-    altChart.data.datasets.forEach(ds => ds.data.shift()); 
+  const altCanvas = document.getElementById('altChart');
+  if (altCanvas) {
+    const ctx = altCanvas.getContext('2d');
+    altChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Altitude (m)', data: [], borderColor: 'magenta', fill: false, yAxisID: 'y_alt', pointRadius: 1 }]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y_alt: { title: { display: true, text: 'Altitude (m)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  altChart.update('none');
 
-  // acceleration
-  accChart.data.labels.push(tLabel);
-  accChart.data.datasets[0].data.push(ax);
-  accChart.data.datasets[1].data.push(ay);
-  accChart.data.datasets[2].data.push(az);
-
-  if (accChart.data.labels.length > maxPoints) { 
-    accChart.data.labels.shift(); 
-    accChart.data.datasets.forEach(ds => ds.data.shift()); 
+  const tempCanvas = document.getElementById('tempChart');
+  if (tempCanvas) {
+    const ctx = tempCanvas.getContext('2d');
+    tempChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Temperature (\u00B0C)', data: [], borderColor: 'brown', fill: false, pointRadius: 1 }]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y: { title: { display: true, text: 'Temp (\u00B0C)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  accChart.update('none');
 
-  // orientation
-  orientChart.data.labels.push(tLabel);
-  orientChart.data.datasets[0].data.push(pitch);
-  orientChart.data.datasets[1].data.push(roll);
-  orientChart.data.datasets[2].data.push(yaw);
-  if (orientChart.data.labels.length > maxPoints) { 
-    orientChart.data.labels.shift(); 
-    orientChart.data.datasets.forEach(ds => ds.data.shift()); 
+  const pressCanvas = document.getElementById('pressChart');
+  if (pressCanvas) {
+    const ctx = pressCanvas.getContext('2d');
+    pressChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{ label: 'Pressure (atm)', data: [], borderColor: 'gray', fill: false, pointRadius: 1 }]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y: { title: { display: true, text: 'Pressure (atm)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  orientChart.update('none');
 
-  // temperature
-  tempChart.data.labels.push(tLabel);
-  tempChart.data.datasets[0].data.push(temp);
-  if (tempChart.data.labels.length > maxPoints) { 
-    tempChart.data.labels.shift(); 
-    tempChart.data.datasets.forEach(ds => ds.data.shift()); 
+  const accCanvas = document.getElementById('accChart');
+  if (accCanvas) {
+    const ctx = accCanvas.getContext('2d');
+    accChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'ax (g)', data: [], borderColor: 'red', fill: false, pointRadius: 1 },
+          { label: 'ay (g)', data: [], borderColor: 'green', fill: false, pointRadius: 1 },
+          { label: 'az (g)', data: [], borderColor: 'blue', fill: false, pointRadius: 1 }
+        ]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y: { title: { display: true, text: 'Acceleration (g)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  tempChart.update('none');
 
-  // pressure
-  pressChart.data.labels.push(tLabel);
-  pressChart.data.datasets[0].data.push(press);
-  if (pressChart.data.labels.length > maxPoints) { 
-    pressChart.data.labels.shift(); 
-    pressChart.data.datasets.forEach(ds => ds.data.shift()); 
+  const orientCanvas = document.getElementById('orientChart');
+  if (orientCanvas) {
+    const ctx = orientCanvas.getContext('2d');
+    orientChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [
+          { label: 'Pitch (\u00B0)', data: [], borderColor: 'orange', fill: false, pointRadius: 1 },
+          { label: 'Roll (\u00B0)', data: [], borderColor: 'purple', fill: false, pointRadius: 1 },
+          { label: 'Yaw (\u00B0)', data: [], borderColor: 'teal', fill: false, pointRadius: 1 }
+        ]
+      },
+      options: {
+        ...baseOptions,
+        scales: {
+          x: { ...xAxisOptions },
+          y: { title: { display: true, text: 'Orientation (\u00B0)', font: { size: 20 }, color: '#fff' }, ticks: { font: { size: 14 }, color: '#fff' } }
+        }
+      }
+    });
   }
-  pressChart.update('none');
 }
 
-// SignalR handler
-connection.on("telemetry", (payload) => {
+function pushToCharts(timeSec, ax, ay, az, pitch, roll, yaw, temp, vel, press, alt) {
+  if (!Number.isFinite(timeSec)) return;
+  const label = timeSec.toFixed(3);
+
+  if (velChart) {
+    velChart.data.labels.push(label);
+    velChart.data.datasets[0].data.push(Number.isFinite(vel) ? vel : null);
+    trimChart(velChart);
+    velChart.update('none');
+  }
+
+  if (altChart) {
+    altChart.data.labels.push(label);
+    altChart.data.datasets[0].data.push(Number.isFinite(alt) ? alt : null);
+    trimChart(altChart);
+    altChart.update('none');
+  }
+
+  if (accChart) {
+    accChart.data.labels.push(label);
+    accChart.data.datasets[0].data.push(Number.isFinite(ax) ? ax : null);
+    accChart.data.datasets[1].data.push(Number.isFinite(ay) ? ay : null);
+    accChart.data.datasets[2].data.push(Number.isFinite(az) ? az : null);
+    trimChart(accChart);
+    accChart.update('none');
+  }
+
+  if (orientChart) {
+    orientChart.data.labels.push(label);
+    orientChart.data.datasets[0].data.push(Number.isFinite(pitch) ? pitch : null);
+    orientChart.data.datasets[1].data.push(Number.isFinite(roll) ? roll : null);
+    orientChart.data.datasets[2].data.push(Number.isFinite(yaw) ? yaw : null);
+    trimChart(orientChart);
+    orientChart.update('none');
+  }
+
+  if (tempChart) {
+    tempChart.data.labels.push(label);
+    tempChart.data.datasets[0].data.push(Number.isFinite(temp) ? temp : null);
+    trimChart(tempChart);
+    tempChart.update('none');
+  }
+
+  if (pressChart) {
+    pressChart.data.labels.push(label);
+    pressChart.data.datasets[0].data.push(Number.isFinite(press) ? press : null);
+    trimChart(pressChart);
+    pressChart.update('none');
+  }
+}
+
+function trimChart(chart) {
+  while (chart.data.labels.length > MAX_DATA_POINTS) {
+    chart.data.labels.shift();
+    chart.data.datasets.forEach(ds => ds.data.shift());
+  }
+}
+
+connection.on('telemetry', (payload) => {
   try {
     if (payload.type === 'telemetry') {
-      const t = Number(payload.t);
-      const seq = Number(payload.seq);
+      const timeSec = Number(payload.t);
+      const seqValue = Number.isFinite(payload.seq) ? payload.seq : (payload.seqRaw ?? null);
       const ax = Number(payload.ax);
       const ay = Number(payload.ay);
       const az = Number(payload.az);
@@ -504,48 +427,35 @@ connection.on("telemetry", (payload) => {
       const lon = Number(payload.lon);
       const alt = Number(payload.alt);
 
-      updateLatest(t, seq, ax, ay, az, pitch, roll, yaw, temp, vel, press, lat, lon, alt);
-      pushToCharts(ax, ay, az, pitch, roll, yaw, temp, vel, press, alt);
-
-      // 🚀 Constant blink logic
-      if (Number(payload.pitch) <= BLINK_AZ_THRESHOLD) {
-        document.body.classList.add("blink-red");
-      } else {
-        document.body.classList.remove("blink-red");
-      }
-
-      const dashboardTitle = document.querySelector('h1');
-      if (Number(payload.pitch) <= BLINK_AZ_THRESHOLD) {
-        document.body.classList.add("blink-red");
-        if (dashboardTitle) dashboardTitle.textContent = "WARNING: Altitude dropping";
-      } else {
-        document.body.classList.remove("blink-red");
-        if (dashboardTitle) dashboardTitle.textContent = "";
-      }
-
+      updateLatest(timeSec, seqValue, ax, ay, az, pitch, roll, yaw, temp, vel, press, lat, lon, alt);
+      pushToCharts(timeSec, ax, ay, az, pitch, roll, yaw, temp, vel, press, alt);
+      updateBlinkState(pitch);
     } else {
-      dbg("RAW: " + JSON.stringify(payload));
+      dbg('RAW: ' + JSON.stringify(payload));
     }
-  } catch (e) {
-    dbg("Error parsing payload: " + e);
+  } catch (err) {
+    dbg('Error parsing payload: ' + err);
   }
 });
 
-async function start(){
+async function start() {
   createCharts();
-  // Initialize 3D rocket model after DOM and three.js are ready
+
   if (typeof initRocket3D === 'function') {
     initRocket3D();
   } else {
-    // If not yet loaded, try again shortly
-    setTimeout(() => { if (typeof initRocket3D === 'function') initRocket3D(); }, 500);
+    setTimeout(() => {
+      if (typeof initRocket3D === 'function') initRocket3D();
+    }, 500);
   }
+
   try {
     await connection.start();
-    dbg("Connected to SignalR hub");
+    dbg('Connected to SignalR hub');
   } catch (err) {
-    dbg("SignalR start failed: " + err);
+    dbg('SignalR start failed: ' + err);
     setTimeout(start, 2000);
   }
 }
+
 start();

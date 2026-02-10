@@ -1,4 +1,3 @@
-
 const conn = (typeof signalR !== 'undefined' && signalR?.HubConnectionBuilder)
   ? new signalR.HubConnectionBuilder().withUrl('/telemetry').withAutomaticReconnect().build()
   : null;
@@ -309,22 +308,27 @@ position.setInterpolationOptions({
   interpolationDegree: 1,
 });
 
-// 3) Entity driven by INS (we'll set orientation from INS, not velocity)
-const rocket = viewer.entities.add({
+
+const rocketPathStyle = {
+  show: true,
+  width: 6,
+  trailTime: 60,
+  material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.25, color: Cesium.Color.RED }),
+};
+
+const rocketEntityOptions = {
   position,
-  point: {
-    pixelSize: 15,
-    color: Cesium.Color.RED,
-    outlineColor: Cesium.Color.WHITE,
-    outlineWidth: 3,
+  path: rocketPathStyle,
+  model: {
+    uri: 'models/Rocket.glb',
+    minimumPixelSize: 32,
+    maximumScale: 500,
+    silhouetteColor: Cesium.Color.WHITE,
+    silhouetteSize: 1,
   },
-  path: {
-    show: true,
-    width: 6,
-    trailTime: 60,
-    material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.25, color: Cesium.Color.RED }),
-  },
-});
+};
+
+const rocket = viewer.entities.add(rocketEntityOptions);
 viewer.trackedEntity = rocket;
 
 // 4) Clock for live-style playback
@@ -345,9 +349,6 @@ for (let k = 0; k <= 5; k++) {
   const pk = enuToEcef(st.p_e.x, st.p_e.y, st.p_e.z);
   position.addSample(tk, pk);
 }
-
-// ---- Replace this with your real sensor ingestion ----
-// Example simulator: constant yaw rate; small climb after 0.2 s
 
 // If you have real sensors, set gyro/acc/mag/P here instead of simulateNextSensorSample().
 

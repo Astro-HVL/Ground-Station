@@ -1,13 +1,25 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
 <head>
   <meta charset="utf-8" />
   <title>Live Telemetry</title>
   <link rel="stylesheet" href="style.css">
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.min.js"></script>
-  <script src="rocket3d.js"></script>
+
+  <!-- ✅ Three.js via ES Modules + importmap (required for GLTFLoader jsm) -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <!-- ✅ Rocket renderer (module) -->
+  <script type="module" src="rocket3d.js"></script>
 </head>
 <body>
 
@@ -33,7 +45,7 @@
       </div>
       <div id="top-right" style="flex:0 0 28%; display:flex; justify-content:flex-end;">
         <!-- 3D rocket (top-right) as a single white circular tile -->
-        <div id="rocket3dContainer" class="white-circle" style="width:260px; height:260px; display:flex; align-items:center; justify-content:center; background:#ffffff; border:1px solid rgba(0,0,0,0.06);">
+        <div id="rocket3dContainer" class="white-circle hero-circle" style="width:260px; height:260px; display:flex; align-items:center; justify-content:center; background:#ffffff; border:1px solid rgba(0,0,0,0.06);">
         </div>
       </div>
     </div>
@@ -53,17 +65,17 @@
       </div>
 
       <div id="bottom-right" style="display:flex; gap:30px; align-items:flex-end;">
-        <div class="white-circle">
+        <div class="white-circle hero-circle">
           <div class="metric-title">Height</div>
           <div class="metric-value" id="circleAltValue">-</div>
           <div class="metric-unit">m</div>
         </div>
-        <div class="white-circle">
+        <div class="white-circle hero-circle">
           <div class="metric-title">Speed</div>
           <div class="metric-value" id="circleVelValue">-</div>
           <div class="metric-unit">m/s</div>
         </div>
-        <div class="white-circle">  
+        <div class="white-circle hero-circle">  
           <div class="metric-title">Accel</div>
           <div class="metric-value" id="circleGValue">-</div>
           <div class="metric-unit">G</div>

@@ -8,26 +8,45 @@ let flightTimerEl;
 
 // debug status
 let __statusBox = null;
-function ensureStatusBox(){
+function ensureStatusBox() {
   if (__statusBox) return __statusBox;
   __statusBox = document.createElement('div');
   __statusBox.id = '__live_data_status';
-  Object.assign(__statusBox.style, { position:'fixed', right:'12px', bottom:'12px', padding:'8px 12px', background:'rgba(0,0,0,0.6)', color:'#fff', fontSize:'12px', borderRadius:'8px', zIndex:9999 });
+  Object.assign(__statusBox.style, {
+    position: 'fixed',
+    right: '12px',
+    bottom: '12px',
+    padding: '8px 12px',
+    background: 'rgba(0,0,0,0.6)',
+    color: '#fff',
+    fontSize: '12px',
+    borderRadius: '8px',
+    zIndex: 9999
+  });
   __statusBox.textContent = 'live_data: init';
   document.body.appendChild(__statusBox);
   return __statusBox;
 }
-function setStatus(text){ try { ensureStatusBox().textContent = 'live_data: ' + text; } catch(e){} }
+function setStatus(text) {
+  try {
+    ensureStatusBox().textContent = 'live_data: ' + text;
+  } catch (e) {
+    console.debug('status update failed', e);
+  }
+}
 
 // ---------- Mode helpers ----------
-function setActiveMode(name){
-  [modeOn, modeReady, modePending, modeApogee, modeParachute].forEach(el => { if(!el) return; el.classList.remove('active-mode'); });
-  const map = { 
-    'on': modeOn, 
-    'ready': modeReady, 
-    'pending': modePending, 
-    'apogee': modeApogee, 
-    'parachute': modeParachute 
+function setActiveMode(name) {
+  [modeOn, modeReady, modePending, modeApogee, modeParachute].forEach((el) => {
+    if (!el) return;
+    el.classList.remove('active-mode');
+  });
+  const map = {
+    on: modeOn,
+    ready: modeReady,
+    pending: modePending,
+    apogee: modeApogee,
+    parachute: modeParachute
   };
   const el = map[name];
   if (el) el.classList.add('active-mode');
@@ -35,7 +54,7 @@ function setActiveMode(name){
 
 // ---------- Charts ----------
 let altChart;
-function createAltChart(){
+function createAltChart() {
   const el = document.getElementById('altitudeChart');
   if (!el) return;
   const ctx = el.getContext('2d');
@@ -74,10 +93,10 @@ function createAltChart(){
   });
 }
 
-function pushAltitude(tSec, alt){
-  if (!altChart) return;
-  altChart.data.labels.push(tSec.toFixed(3));
-  altChart.data.datasets[0].data.push(alt);
+function pushAltitude(timeSec, alt) {
+  if (!altChart || !Number.isFinite(timeSec)) return;
+  altChart.data.labels.push(timeSec.toFixed(3));
+  altChart.data.datasets[0].data.push(Number.isFinite(alt) ? alt : null);
   if (altChart.data.labels.length > 300) {
     altChart.data.labels.shift();
     altChart.data.datasets[0].data.shift();
@@ -86,12 +105,13 @@ function pushAltitude(tSec, alt){
 }
 
 // ---------- Metric updater ----------
-function updateMetrics(alt, vel, ax, ay, az){
-  if (circleAlt) circleAlt.textContent = isFinite(alt) ? alt.toFixed(0) : '-';
-  if (circleVel) circleVel.textContent = isFinite(vel) ? vel.toFixed(1) : '-';
+function updateMetrics(alt, vel, ax, ay, az) {
+  if (circleAlt) circleAlt.textContent = Number.isFinite(alt) ? alt.toFixed(0) : '-';
+  if (circleVel) circleVel.textContent = Number.isFinite(vel) ? vel.toFixed(1) : '-';
   if (circleG) {
-    const g = Math.sqrt(ax*ax + ay*ay + az*az);
-    circleG.textContent = isFinite(g) ? g.toFixed(2) : '-';
+    const hasAccel = [ax, ay, az].every((v) => Number.isFinite(v));
+    const g = hasAccel ? Math.sqrt(ax * ax + ay * ay + az * az) : NaN;
+    circleG.textContent = Number.isFinite(g) ? g.toFixed(2) : '-';
   }
 }
 
@@ -111,13 +131,22 @@ function createFallbackRocket() {
   function draw(pitch = 0, yaw = 0, roll = 0) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
-    ctx.translate(canvas.width/2, canvas.height - 20);
-    ctx.rotate((yaw||0) * Math.PI/180);
-    ctx.fillStyle = '#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
+    ctx.translate(canvas.width / 2, canvas.height - 20);
+    ctx.rotate((yaw || 0) * Math.PI / 180);
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(0,-80); ctx.lineTo(12,-30); ctx.lineTo(6,-30);
-    ctx.lineTo(6,0); ctx.lineTo(-6,0); ctx.lineTo(-6,-30); ctx.lineTo(-12,-30);
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.moveTo(0, -80);
+    ctx.lineTo(12, -30);
+    ctx.lineTo(6, -30);
+    ctx.lineTo(6, 0);
+    ctx.lineTo(-6, 0);
+    ctx.lineTo(-6, -30);
+    ctx.lineTo(-12, -30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
   return { draw };
@@ -126,69 +155,99 @@ function createFallbackRocket() {
 if (typeof initRocket3D !== 'function') {
   document.addEventListener('DOMContentLoaded', () => {
     const fb = createFallbackRocket();
-    if (fb) window.setRocket3DRotation = (p,y,r) => fb.draw(p,y,r);
+    if (fb) window.setRocket3DRotation = (p, y, r) => fb.draw(p, y, r);
   });
 }
 
 // ---------- Telemetry handling ----------
-conn.on('telemetry', payload => {
+conn.on('telemetry', (payload) => {
   try {
     if (payload.type === 'telemetry') {
       const state = Number(payload.state);
-      const tSec = Number(payload.t);             // allerede i sekunder
+      const timeSec = Number(payload.t);
       const alt = Number(payload.alt);
       const vel = Number(payload.vel);
       const ax = Number(payload.ax);
       const ay = Number(payload.ay);
       const az = Number(payload.az);
       const pitch = Number(payload.pitch);
-      const roll  = Number(payload.roll);
-      const yaw   = Number(payload.yaw);
+      const roll = Number(payload.roll);
+      const yaw = Number(payload.yaw);
 
-      // flight timer
-      if (flightTimerEl) flightTimerEl.textContent = `Flight duration: ${tSec.toFixed(2)} s`;
+      if (flightTimerEl) {
+        flightTimerEl.textContent = Number.isFinite(timeSec)
+          ? `Flight duration: ${timeSec.toFixed(2)} s`
+          : 'Flight duration: -';
+      }
 
-      // metrikker og 3D
       updateMetrics(alt, vel, ax, ay, az);
-      if (typeof setRocket3DRotation === 'function') setRocket3DRotation(pitch, yaw, roll);
-
-      // oppdater altitude chart KUN når state == 3 (LAUNCH)
-      if (state === 3 || state === 4 || state === 5) {
-        pushAltitude(tSec, alt);
+      if (typeof setRocket3DRotation === 'function') {
+        setRocket3DRotation(pitch, yaw, roll);
       }
 
-      // pill state
+      // Only plot altitude once the vehicle is active
+      if ([3, 4, 5].includes(state)) {
+        pushAltitude(timeSec, alt);
+      }
+
       switch (state) {
-        case 1: setActiveMode('on');        document.body.classList.remove('blink-red'); break; // System Check
-        case 2: setActiveMode('ready');     document.body.classList.remove('blink-red'); break; // Launch Ready
-        case 3: setActiveMode('pending');   document.body.classList.remove('blink-red'); break; // Launch
-        case 4: setActiveMode('apogee');    document.body.classList.remove('blink-red'); break; // Apogee
-        case 5: setActiveMode('parachute'); document.body.classList.add('blink-red');    break; // Parachute Deploy
+        case 1:
+          setActiveMode('on');
+          document.body.classList.remove('blink-red');
+          break; // System Check
+        case 2:
+          setActiveMode('ready');
+          document.body.classList.remove('blink-red');
+          break; // Launch Ready
+        case 3:
+          setActiveMode('pending');
+          document.body.classList.remove('blink-red');
+          break; // Launch
+        case 4:
+          setActiveMode('apogee');
+          document.body.classList.remove('blink-red');
+          break; // Apogee
+        case 5:
+          setActiveMode('parachute');
+          document.body.classList.add('blink-red');
+          break; // Parachute Deploy
       }
-
-    }
-    else if (payload.type === 'json' && payload.data) {
-      // (Valgfritt: fortsatt støtte for JSON-statuspakker, men ikke nødvendig når CSV sendes hele tiden)
+    } else if (payload.type === 'json' && payload.data) {
       const st = payload.data.state;
       switch (st) {
-        case 1: setActiveMode('on');      document.body.classList.remove('blink-red'); break;
-        case 2: setActiveMode('ready');   document.body.classList.remove('blink-red'); break;
-        case 3: setActiveMode('pending'); document.body.classList.remove('blink-red'); break;
-        case 4: setActiveMode('apogee');  document.body.classList.remove('blink-red'); break;
-        case 5: setActiveMode('parachute'); document.body.classList.add('blink-red');  break;
+        case 1:
+          setActiveMode('on');
+          document.body.classList.remove('blink-red');
+          break;
+        case 2:
+          setActiveMode('ready');
+          document.body.classList.remove('blink-red');
+          break;
+        case 3:
+          setActiveMode('pending');
+          document.body.classList.remove('blink-red');
+          break;
+        case 4:
+          setActiveMode('apogee');
+          document.body.classList.remove('blink-red');
+          break;
+        case 5:
+          setActiveMode('parachute');
+          document.body.classList.add('blink-red');
+          break;
       }
     }
-  } catch(e){
+  } catch (e) {
     console.error('telemetry parse error', e);
   }
 });
 
 // ---------- Connection start ----------
-async function startConn(){
+async function startConn() {
   try {
     await conn.start();
     setStatus('connected');
-  } catch(e){
+  } catch (e) {
     console.error('connection start failed', e);
     setStatus('retry...');
     setTimeout(startConn, 2000);
@@ -199,7 +258,7 @@ async function startConn(){
 document.addEventListener('DOMContentLoaded', () => {
   circleAlt = document.getElementById('circleAltValue');
   circleVel = document.getElementById('circleVelValue');
-  circleG   = document.getElementById('circleGValue');
+  circleG = document.getElementById('circleGValue');
   modeOn = document.getElementById('modeOn');
   modeReady = document.getElementById('modeReady');
   modePending = document.getElementById('modePending');
@@ -210,11 +269,25 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof initRocket3D === 'function') {
     if (!window.__rocket3d_inited) {
       window.__rocket3d_inited = true;
-      setTimeout(() => { try { initRocket3D(); } catch(e){ console.error(e); } }, 100);
+      setTimeout(() => {
+        try {
+          initRocket3D();
+        } catch (e) {
+          console.error(e);
+        }
+      }, 100);
     }
-  } else setStatus('3D not found');
+  } else {
+    setStatus('3D not found');
+  }
 
-  createAltChart();
+createAltChart();
+setActiveMode('on');
+
+// Skip SignalR when running from simple static server (python http.server)
+if (window.location.port !== '8000') {
   startConn();
-  setActiveMode('on'); // default: System Check
+} else {
+  setStatus('static preview (SignalR disabled)');
+}
 });
