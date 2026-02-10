@@ -1,9 +1,44 @@
 ﻿html, body {
     margin: 0;
-    height: 100vh;
+    height: 100%;
     font-family: 'Segoe UI', sans-serif;
     overflow-x: hidden;
 }
+
+:root{
+  --frame-blue: #0B1C2D;
+  --rightbar-w: 70px;
+  --bottombar-h: 140px;
+}
+
+.ui-frame{
+  height: 100vh;
+  width: 100vw;
+  display: grid;
+  grid-template-columns: 1fr var(--rightbar-w);
+  grid-template-rows: 1fr var(--bottombar-h);
+  overflow: hidden;
+}
+
+.ui-main{
+  grid-column: 1 / 2;
+  grid-row: 1 / 2;
+  overflow: hidden;
+}
+
+.ui-rightbar{
+  grid-column: 2 / 3;
+  grid-row: 1 / 3;
+  background: var(--frame-blue);
+}
+
+.ui-bottombar{
+  grid-column: 1 / 2;
+  grid-row: 2 / 3;
+  background: var(--frame-blue);
+  z-index: 20000;
+}
+
 
 .live-container {
     display: flex;
@@ -13,7 +48,7 @@
     justify-content: space-between;
     padding: 20px 32px;
     width: 100%;
-    min-height: calc(100vh - 60px);
+    height: 100%;
     box-sizing: border-box;
 }
 
@@ -57,6 +92,7 @@
     width: 100%;
     gap: 24px;
     padding-bottom: 18px;
+    z-index: 20000;
 }
 
 /* === Mode pill === */
@@ -80,7 +116,6 @@
     padding: 20px 32px;
     border-radius: 40px;
     background: #071033;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
     justify-content: center;
     align-items: center;
     flex-wrap: wrap;
@@ -144,15 +179,18 @@
     width: 260px;
     height: 260px;
     border-radius: 130px;
-    background: #0f1b49;
+    background: transparent;
     color: #ffffff;
     border: 2px solid rgba(0, 0, 0, 0.06);
+    position: relative;
+    top: 20px; /* move the hero circle 20px lower; adjust as needed */
     box-sizing: border-box;
 }
 
 .white-circle.hero-circle .metric-title {
     font-size: 36px;
     font-weight: 800;
+    color: #ffffff
 }
 
 .white-circle.hero-circle .metric-value {
@@ -333,3 +371,96 @@ thead, th {
     font-size: 20px;
     margin-bottom: 12px;
 }
+
+
+.bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100vw;
+    height: 180px; /* increased height so circular tiles sit comfortably */
+    background: linear-gradient(135deg, #000000, #3533cd);
+    backdrop-filter: blur(6px);
+    z-index: 500;
+    pointer-events: auto;
+}
+.bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 24px;
+}
+.mode-pill{
+  background: transparent; 
+  transition: background 0.3s ease;
+}
+
+/* Ensure metric tiles on the bottom bar look good and keep JS ids functioning */
+.bottom-bar .metric-card.large {
+    width: 160px;
+    height: 160px;
+    border-radius: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #071033;
+    color: #fff;
+    box-sizing: border-box;
+}
+.bottom-bar .metric-title { font-size: 18px; opacity: 0.95; }
+.bottom-bar .metric-value { font-size: 40px; font-weight:800; margin-top:8px; }
+.bottom-bar .metric-unit { font-size: 16px; opacity:0.9; }
+
+/* Fixed right-side bar matching the bottom bar's color scheme and width */
+.right-fixed-bar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 160px; /* slightly wider to match bottom bar increase */
+    background: linear-gradient(135deg, #000000, #3533cd);
+    backdrop-filter: blur(6px);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 8px;
+    box-sizing: border-box;
+}
+
+/* inner container for future content (icons, status, etc.) */
+.right-fixed-bar .right-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+}
+
+/* Make circular tiles transparent (override inline styles if present) */
+.white-circle,
+.white-circle.hero-circle,
+.bottom-bar .metric-card.large {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+}
+
+/* Rocket container: transparent fill but visible circular border and larger size */
+#rocket3dContainer {
+    background: transparent !important;
+    width: 320px !important;
+    height: 320px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 20000;
+    position: relative !important;
+    transform: translateX(160px) !important; /* move fully into right bar; adjust value as needed */
+    transition: transform 0.18s ease;
+}
+
+/* If you prefer a subtle outline instead of no border, uncomment below and remove the `border: none` above */
+/* .bottom-bar .metric-card.large { border: 1px solid rgba(255,255,255,0.06) !important; } */

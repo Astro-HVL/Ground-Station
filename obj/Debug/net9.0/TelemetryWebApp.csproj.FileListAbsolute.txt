@@ -170,7 +170,6 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\j9jg6y81z0
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\gnuv8hj9mb-9lulnu6aaw.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\mdlq1jbe1b-cip6ltvy51.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\b1ltfyczlz-xkqjswx506.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-h0nwex53ug.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\760xbo79oc-zhrzztwav3.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\staticwebassets.build.json
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\staticwebassets.build.json.cache
@@ -182,4 +181,5 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\refint\TelemetryWebAp
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\TelemetryWebApp.pdb
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\TelemetryWebApp.genruntimeconfig.cache
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\ref\TelemetryWebApp.dll
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-unyh5vj276.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-jlov9e6fz1.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-mturi1pmbm.gz

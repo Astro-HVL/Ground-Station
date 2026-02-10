@@ -10,26 +10,17 @@
   <script src="rocket3d.js"></script>
 </head>
 <body>
+ <div id="flightTimer" style="position:fixed; top:8px; left:50%; transform:translateX(-50%);
+    font-size:28px; font-weight:700; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,0.6); z-index:1000;"></div>
 
-  <!-- Flight time display (top center) -->
-<div id="flightTimer" style="
-  position: fixed; 
-  top: 8px; 
-  left: 50%; 
-  transform: translateX(-50%);
-  font-size: 28px; 
-  font-weight: 700; 
-  color: #fff; 
-  text-shadow: 0 2px 6px rgba(0,0,0,0.6);
-  z-index: 1000;
-  "></div>
+ 
 
   <div class="live-container">
     <!-- Top hero: left large grid chart, center globe+legend, right small rocket indicator -->
     <div id="top-row" style="display:flex; gap:24px; width:100%; align-items:flex-start;">
       <div id="top-left" style="flex:0 0 48%;">
         <!-- Altitude chart (top-left) -->
-        <canvas id="altitudeChart" width="640" height="420" style="background:#0f1b49; border:1.5px solid #222; border-radius:6px;"></canvas>
+        <canvas id="altitudeChart" width="640" height="420" style="background:#18356a; border:1.5px solid #222; border-radius:6px;"></canvas>
       </div>
       <div id="top-right" style="flex:0 0 28%; display:flex; justify-content:flex-end;">
         <!-- 3D rocket (top-right) as a single white circular tile -->
@@ -45,7 +36,7 @@
       <div class="mode-section">
       <div style="color:#fff; font-size:36px; margin-bottom:6px;">Rocket mode:</div>
       <!---<div class="mode-pill" style="background:#0f1b49"> --->
-      <div class="mode-pill" style="background: linear-gradient(135deg, #000000, #3533cd);">
+      <div class="mode-pill">
         <div id="modeOn" class="mode-box">System Check</div>
         <div id="modeReady" class="mode-box">Operation Ready</div>
         <div id="modePending" class="mode-box">Lift-off</div>
@@ -55,25 +46,42 @@
       </div>
 
       <div id="bottom-right" style="display:flex; gap:30px; align-items:flex-end;">
-        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">
-          <div class="metric-title">Height</div>
-          <div class="metric-value" id="circleAltValue">-</div>
-          <div class="metric-unit">m</div>
-        </div>
-        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">
-          <div class="metric-title">Speed</div>
-          <div class="metric-value" id="circleVelValue">-</div>
-          <div class="metric-unit">m/s</div>
-        </div>
-        <div class="white-circle hero-circle"  style="background: linear-gradient(135deg, #000000, #3533cd);">  
-          <div class="metric-title">Accel</div>
-          <div class="metric-value" id="circleGValue">-</div>
-          <div class="metric-unit">G</div>
-        </div>
+        <!-- metrics moved to the fixed bottom bar for a cleaner layout -->
+      </div>
+      </div>
+    </div>
+  
+  
+
+
+  </div>
+  <script src="live_data.js"></script>
+
+  <div class="bottom-bar">
+    <div class="bottom-bar-inner" style="display:flex; gap:30px; align-items:center; justify-content:center; height:100%; padding:12px 24px;">
+      <div class="metric-card large">
+        <div class="metric-title">Height</div>
+        <div class="metric-value" id="circleAltValue">-</div>
+        <div class="metric-unit">m</div>
+      </div>
+      <div class="metric-card large">
+        <div class="metric-title">Speed</div>
+        <div class="metric-value" id="circleVelValue">-</div>
+        <div class="metric-unit">m/s</div>
+      </div>
+      <div class="metric-card large">
+        <div class="metric-title">Force</div>
+        <div class="metric-value" id="circleGValue">-</div>
+        <div class="metric-unit">G</div>
       </div>
     </div>
   </div>
 
-  <script src="live_data.js"></script>
+  <!-- Fixed right-side bar (matches bottom bar width and color) -->
+  <div class="right-fixed-bar">
+    <div class="right-inner">
+      <!-- add icons, small metrics or status indicators here if needed -->
+    </div>
+  </div>
 </body>
 </html>
