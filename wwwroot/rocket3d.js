@@ -37,24 +37,84 @@ function initRocket3D() {
     const rocketGroup = new THREE.Group();
 
     const bodyGeometry = new THREE.CylinderGeometry(0.2, 0.2, 2.2, 32);
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+        color: 0xd9dde3,
+        roughness: 0.62,
+        metalness: 0.06
+    });
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     rocketGroup.add(body);
 
-    const noseGeometry = new THREE.ConeGeometry(0.22, 0.5, 32);
-    const noseMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const noseGeometry = new THREE.ConeGeometry(0.2, 0.5, 32);
+    const noseMaterial = bodyMaterial;
     const nose = new THREE.Mesh(noseGeometry, noseMaterial);
     nose.position.y = 1.35;
     rocketGroup.add(nose);
 
-    const finGeometry = new THREE.BoxGeometry(0.05, 0.4, 0.18);
-    const finMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-    for (let i = 0; i < 3; i++) {
-        const fin = new THREE.Mesh(finGeometry, finMaterial);
-        fin.position.y = -1.1;
-        fin.position.x = Math.cos((i * 2 * Math.PI) / 3) * 0.18;
-        fin.position.z = Math.sin((i * 2 * Math.PI) / 3) * 0.18;
-        fin.rotation.y = (i * 2 * Math.PI) / 3;
+    // Nozzle
+    const nozzleGeom = new THREE.CylinderGeometry(0.2, 0.11, 0.25, 32);
+    const nozzleMat = new THREE.MeshStandardMaterial({ color: 0xb6bdc8, roughness: 0.5, metalness: 0.2 });
+    const nozzle = new THREE.Mesh(nozzleGeom, nozzleMat);
+    nozzle.position.y = -1.25;
+    rocketGroup.add(nozzle);
+
+    // ---------- Trapezoid fins (realistic preset) ----------
+    function makeTrapezoidFinGeometry(rootChord, tipChord, span, thickness, sweep) {
+        // Fin plane is X/Y:
+        // X = radial direction (out from body), Y = rocket axis direction.
+        // Root edge (long) is at X=0, tip edge (short) is at X=span.
+        const rootHalf = rootChord * 0.5;
+        const tipHalf = tipChord * 0.5;
+        const shape = new THREE.Shape();
+        shape.moveTo(0, -rootHalf);
+        shape.lineTo(0, rootHalf);
+        shape.lineTo(span, sweep + tipHalf);
+        shape.lineTo(span, sweep - tipHalf);
+        shape.closePath();
+
+        const geom = new THREE.ExtrudeGeometry(shape, {
+            depth: thickness,
+            bevelEnabled: false
+        });
+
+        // Center only thickness on Z so root stays anchored at local X=0.
+        geom.translate(0, 0, -thickness * 0.5);
+        geom.computeVertexNormals();
+        return geom;
+    }
+
+    const finMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8b95a3,
+        roughness: 0.5,
+        metalness: 0.2,
+        flatShading: true,
+        side: THREE.DoubleSide
+    });
+    const finEdgeMaterial = new THREE.LineBasicMaterial({
+        color: 0x4f5b6b,
+        transparent: true,
+        opacity: 0.7
+    });
+
+    const bodyRadius = 0.20;
+    const rootChord = 0.32;
+    const tipChord = 0.10;
+    const span = 0.20;
+    const thickness = 0.03;
+    // Keep fin centered so it looks like a full trapezoid from side view.
+    const sweep = 0.0;
+
+    const finGeom = makeTrapezoidFinGeometry(rootChord, tipChord, span, thickness, sweep);
+
+    for (let i = 0; i < 4; i++) {
+        const fin = new THREE.Mesh(finGeom, finMaterial);
+        const angle = (i * Math.PI * 2) / 4;
+        const out = bodyRadius + 0.003;
+
+        fin.position.set(Math.cos(angle) * out, -0.9, Math.sin(angle) * out);
+        fin.rotation.y = angle;
+        fin.add(new THREE.LineSegments(new THREE.EdgesGeometry(finGeom), finEdgeMaterial));
+
         rocketGroup.add(fin);
     }
 
@@ -68,7 +128,7 @@ function initRocket3D() {
     // ---------- Fixed world axes (bigger & slightly lower) ----------
     const axesLength = 1.8;
     const axesRadius = 0.08;
-    const axesOpacity = 0.7;
+    const axesOpacity = 0.35;
 
     axesGroup = new THREE.Group();
 
@@ -77,7 +137,7 @@ function initRocket3D() {
         color: 0xff0000,
         transparent: true,
         opacity: axesOpacity,
-        depthTest: false
+        depthTest: true
     });
     const xGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const xAxis = new THREE.Mesh(xGeom, xMat);
@@ -90,7 +150,7 @@ function initRocket3D() {
         color: 0x00ff00,
         transparent: true,
         opacity: axesOpacity,
-        depthTest: false
+        depthTest: true
     });
     const yGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const yAxis = new THREE.Mesh(yGeom, yMat);
@@ -102,7 +162,7 @@ function initRocket3D() {
         color: 0x0000ff,
         transparent: true,
         opacity: axesOpacity,
-        depthTest: false
+        depthTest: true
     });
     const zGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const zAxis = new THREE.Mesh(zGeom, zMat);
@@ -139,3 +199,6 @@ function animateRocket3D() {
     requestAnimationFrame(animateRocket3D);
     rocket3dRenderer.render(rocket3dScene, rocket3dCamera);
 }
+
+
+

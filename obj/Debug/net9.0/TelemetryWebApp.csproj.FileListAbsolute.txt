@@ -167,7 +167,6 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\scopedcss\bundle\Tele
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\rr86fukgiu-sd4r5cwuf0.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\de4o8suvld-la63wceekc.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\j9jg6y81z0-qawh107rm3.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\mdlq1jbe1b-cip6ltvy51.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\760xbo79oc-zhrzztwav3.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\staticwebassets.build.json
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\staticwebassets.build.json.cache
@@ -182,4 +181,5 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\ref\TelemetryWebApp.d
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\gnuv8hj9mb-2q5rlchiqi.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-wr6nic4uro.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\b1ltfyczlz-7wkis1m0rn.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-blaqgodzbe.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\mdlq1jbe1b-f4dlcctcfo.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-9hkcfy9nzm.gz
