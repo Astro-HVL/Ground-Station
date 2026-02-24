@@ -45,10 +45,28 @@ function initRocket3D() {
     const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
     rocketGroup.add(body);
 
-    const noseGeometry = new THREE.ConeGeometry(0.2, 0.5, 32);
+    const noseRadius = 0.2;
+    const noseLength = 0.62;
+    const noseSegments = 40;
+
+    // Smooth ogive-like nose profile using lathe
+    const profile = [];
+    for (let i = 0; i <= noseSegments; i++) {
+        const t = i / noseSegments; // 0..1 from base to tip
+        const y = t * noseLength;
+        // Keep rounded ogive body and only sharpen very near the tip.
+        const baseR = noseRadius * Math.sqrt(1 - t * t);
+        const tipTaper = 1 - 0.55 * Math.pow(t, 6);
+        const r = baseR * tipTaper;
+        profile.push(new THREE.Vector2(r, y));
+    }
+
+    const noseGeometry = new THREE.LatheGeometry(profile, 48);
     const noseMaterial = bodyMaterial;
     const nose = new THREE.Mesh(noseGeometry, noseMaterial);
-    nose.position.y = 1.35;
+
+    // Body top is y=1.1 for a 2.2 tall centered cylinder
+    nose.position.y = 1.1;
     rocketGroup.add(nose);
 
     // Nozzle
