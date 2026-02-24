@@ -76,7 +76,9 @@
   const rocketPathStyle = {
     show: true,
     width: 6,
-    trailTime: 60,
+    leadTime: 0,
+    trailTime: 300,
+    resolution: 1,
     material: new Cesium.PolylineGlowMaterialProperty({
       glowPower: 0.25,
       color: Cesium.Color.RED,
@@ -98,15 +100,35 @@
       silhouetteSize: 1,
     },
   });
+  // Side-follow camera offset (east, north, up in meters).
+  rocket.viewFrom = new Cesium.Cartesian3(1800, 0, 500);
   viewer.trackedEntity = rocket;
-  viewer.zoomTo(rocket);
+  viewer.zoomTo(
+    rocket,
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(90),
+      Cesium.Math.toRadians(-10),
+      2500,
+    ),
+  );
+
+  // Fallback trail polyline to keep history visible even if clock drifts.
+  const trailPositions = [initialPos.clone()];
+  const MAX_TRAIL_POINTS = 3000;
+  viewer.entities.add({
+    polyline: {
+      positions: new Cesium.CallbackProperty(() => trailPositions, false),
+      width: 4,
+      material: Cesium.Color.ORANGE.withAlpha(0.9),
+    },
+  });
   /**
-   * Keep the timeline moving in real-time.
+   * Drive the clock from telemetry samples to avoid drift.
    */
-  viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
+  viewer.clock.clockStep = Cesium.ClockStep.TICK_DEPENDENT;
   viewer.clock.multiplier = 1;
-  viewer.clock.shouldAnimate = true;
-  viewer.clock.clockRange = Cesium.ClockRange.CLAMPED;
+  viewer.clock.shouldAnimate = false;
+  viewer.clock.clockRange = Cesium.ClockRange.UNBOUNDED;
 
   /**
    * ENU (east-north-up) transform for our local origin.
@@ -147,13 +169,16 @@
   /**
    * Motion state for basic integration when we do not have GPS position.
    */
-  const POSITION_SCALE = 100;
+  const POSITION_SCALE = 1;
+  const MAX_SPEED_MPS = 500;
+  const MAX_STEP_SECONDS = 1;
   const motionState = {
     lastT: null,
     t0: null,
     startTime: Cesium.JulianDate.now(),
     posENU: new Cesium.Cartesian3(0, 0, 0),
     velENU: new Cesium.Cartesian3(0, 0, 0),
+    lastPosFixed: initialPos.clone(),
   };
 
   /**
@@ -182,6 +207,25 @@
   function isValidLatLon(lat, lon) {
     if (lat === null || lon === null) return false;
     return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  /**
+   * Convert GPS values to degrees if the payload uses microdegrees.
+   * @param {number | null} lat
+   * @param {number | null} lon
+   * @returns {{lat: number | null, lon: number | null}}
+   */
+  function normalizeLatLon(lat, lon) {
+    if (lat === null || lon === null) return { lat: null, lon: null };
+    if (isValidLatLon(lat, lon)) return { lat, lon };
+
+    const microLat = lat / 1e6;
+    const microLon = lon / 1e6;
+    if (isValidLatLon(microLat, microLon)) {
+      return { lat: microLat, lon: microLon };
+    }
+
+    return { lat: null, lon: null };
   }
 
   /**
@@ -245,8 +289,11 @@
     const pitch = toNumber(sample.pitch) ?? 0;
     const roll = toNumber(sample.roll) ?? 0;
     const vel = toNumber(sample.vel);
-    const lat = toNumber(sample.lat);
-    const lon = toNumber(sample.lon);
+    const rawLat = toNumber(sample.lat);
+    const rawLon = toNumber(sample.lon);
+    const normalizedLatLon = normalizeLatLon(rawLat, rawLon);
+    const lat = normalizedLatLon.lat;
+    const lon = normalizedLatLon.lon;
     const alt = toNumber(sample.alt) ?? 0;
 
     console.log(
@@ -261,11 +308,40 @@
     if (motionState.t0 === null) {
       motionState.t0 = t;
       motionState.startTime = Cesium.JulianDate.now();
+      motionState.lastT = t;
+
+      const firstPosFixed = isValidLatLon(lat, lon)
+        ? Cesium.Cartesian3.fromDegrees(lon, lat, alt)
+        : initialPos.clone();
+
+      if (isValidLatLon(lat, lon)) {
+        launchSite = { lon, lat, h: alt };
+        originFixed = Cesium.Cartesian3.fromDegrees(
+          launchSite.lon,
+          launchSite.lat,
+          launchSite.h,
+        );
+        enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(originFixed);
+      }
+
+      motionState.lastPosFixed = Cesium.Cartesian3.clone(firstPosFixed);
+      position.addSample(motionState.startTime, firstPosFixed);
+      trailPositions.length = 0;
+      trailPositions.push(Cesium.Cartesian3.clone(firstPosFixed));
+      viewer.clock.startTime = motionState.startTime.clone();
+      viewer.clock.currentTime = motionState.startTime.clone();
+      viewer.clock.stopTime = Cesium.JulianDate.addSeconds(
+        motionState.startTime,
+        120,
+        new Cesium.JulianDate(),
+      );
+      return;
     }
 
     const dt = motionState.lastT === null ? 0 : t - motionState.lastT;
     motionState.lastT = t;
     if (dt <= 0) return;
+    const dtSafe = Math.min(dt, MAX_STEP_SECONDS);
 
     let posFixed = null;
     if (isValidLatLon(lat, lon)) {
@@ -286,7 +362,7 @@
       if (vel === null) {
         const dv = Cesium.Cartesian3.multiplyByScalar(
           aENU,
-          dt,
+          dtSafe,
           new Cesium.Cartesian3(),
         );
         motionState.velENU = Cesium.Cartesian3.add(
@@ -297,13 +373,13 @@
       }
 
       const deltaPos = new Cesium.Cartesian3();
-      Cesium.Cartesian3.multiplyByScalar(motionState.velENU, dt, deltaPos);
+      Cesium.Cartesian3.multiplyByScalar(motionState.velENU, dtSafe, deltaPos);
       if (vel === null) {
         Cesium.Cartesian3.add(
           deltaPos,
           Cesium.Cartesian3.multiplyByScalar(
             aENU,
-            0.5 * dt * dt,
+            0.5 * dtSafe * dtSafe,
             new Cesium.Cartesian3(),
           ),
           deltaPos,
@@ -327,6 +403,33 @@
       );
     }
 
+    if (motionState.lastPosFixed) {
+      const maxStepMeters = MAX_SPEED_MPS * dtSafe;
+      const rawStepMeters = Cesium.Cartesian3.distance(
+        motionState.lastPosFixed,
+        posFixed,
+      );
+
+      if (rawStepMeters > maxStepMeters && maxStepMeters > 0) {
+        const dir = Cesium.Cartesian3.subtract(
+          posFixed,
+          motionState.lastPosFixed,
+          new Cesium.Cartesian3(),
+        );
+        Cesium.Cartesian3.normalize(dir, dir);
+        posFixed = Cesium.Cartesian3.add(
+          motionState.lastPosFixed,
+          Cesium.Cartesian3.multiplyByScalar(
+            dir,
+            maxStepMeters,
+            new Cesium.Cartesian3(),
+          ),
+          new Cesium.Cartesian3(),
+        );
+      }
+    }
+    motionState.lastPosFixed = Cesium.Cartesian3.clone(posFixed);
+
     const currentTime = Cesium.JulianDate.addSeconds(
       motionState.startTime,
       t - motionState.t0,
@@ -334,6 +437,10 @@
     );
 
     position.addSample(currentTime, posFixed);
+    trailPositions.push(Cesium.Cartesian3.clone(posFixed));
+    if (trailPositions.length > MAX_TRAIL_POINTS) {
+      trailPositions.shift();
+    }
 
     const hpr = new Cesium.HeadingPitchRoll(
       Cesium.Math.toRadians(yaw),
@@ -354,6 +461,11 @@
       Cesium.JulianDate.greaterThan(newStop, viewer.clock.stopTime)
     ) {
       viewer.clock.stopTime = newStop;
+    }
+
+    viewer.clock.currentTime = currentTime.clone();
+    if (viewer.trackedEntity !== rocket) {
+      viewer.trackedEntity = rocket;
     }
   }
 
