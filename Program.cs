@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -15,14 +16,31 @@ builder.Services.AddSignalR();
 var app = builder.Build();
 app.MapHub<TelemetryHub>("/telemetry");
 
+var contentTypeProvider = new FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".glb"] = "model/gltf-binary";
+contentTypeProvider.Mappings[".gltf"] = "model/gltf+json";
+
 app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
 {
     branch.UseDefaultFiles();
-    branch.UseStaticFiles();
+    branch.UseStaticFiles(new StaticFileOptions
+    {
+        ContentTypeProvider = contentTypeProvider
+    });
 });
 
 var cts = new CancellationTokenSource();
-var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ?? (OperatingSystem.IsWindows() ? "COM5" : "/dev/ttyUSB0");
+var portName = Environment.GetEnvironmentVariable("TELEM_PORT");
+if (string.IsNullOrWhiteSpace(portName))
+{
+    portName = ResolveDefaultPort();
+    Console.WriteLine($"TELEM_PORT not set. Using serial port: {portName}");
+}
+else
+{
+    Console.WriteLine($"Using TELEM_PORT from environment: {portName}");
+}
+
 var baud = int.TryParse(Environment.GetEnvironmentVariable("TELEM_BAUD"), out var b) ? b : 115200;
 
 var hub = app.Services.GetRequiredService<IHubContext<TelemetryHub>>();
@@ -30,6 +48,60 @@ _ = Task.Run(() => SerialLoop(portName, baud, hub, cts.Token));
 
 app.Lifetime.ApplicationStopping.Register(() => cts.Cancel());
 app.Run();
+
+static string ResolveDefaultPort()
+{
+    if (OperatingSystem.IsWindows())
+    {
+        return "COM4";
+    }
+
+    if (OperatingSystem.IsMacOS())
+    {
+        return FindFirstMatchingPort(
+                   "/dev/cu.usbmodem*",
+                   "/dev/cu.usbserial*",
+                   "/dev/tty.usbmodem*",
+                   "/dev/tty.usbserial*")
+               ?? "/dev/cu.usbmodem";
+    }
+
+    return FindFirstMatchingPort("/dev/ttyACM*", "/dev/ttyUSB*")
+           ?? "/dev/ttyUSB0";
+}
+
+static string? FindFirstMatchingPort(params string[] patterns)
+{
+    foreach (var pattern in patterns)
+    {
+        var directory = Path.GetDirectoryName(pattern);
+        var searchPattern = Path.GetFileName(pattern);
+
+        if (string.IsNullOrWhiteSpace(directory) ||
+            string.IsNullOrWhiteSpace(searchPattern) ||
+            !Directory.Exists(directory))
+        {
+            continue;
+        }
+
+        try
+        {
+            var matches = Directory.GetFiles(directory, searchPattern);
+            Array.Sort(matches, StringComparer.Ordinal);
+
+            if (matches.Length > 0)
+            {
+                return matches[0];
+            }
+        }
+        catch
+        {
+            // Ignore glob failures and continue searching other patterns.
+        }
+    }
+
+    return null;
+}
 
 async Task SerialLoop(string port, int baudrate, IHubContext<TelemetryHub> hubContext, CancellationToken token)
 {
