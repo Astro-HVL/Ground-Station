@@ -180,6 +180,6 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\TelemetryWebApp.pdb
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\TelemetryWebApp.genruntimeconfig.cache
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\ref\TelemetryWebApp.dll
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\gnuv8hj9mb-2q5rlchiqi.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-71rwjpqmbu.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-wf2z3ecd1j.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\b1ltfyczlz-i91b7oiod3.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-wr6nic4uro.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\b1ltfyczlz-7wkis1m0rn.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-blaqgodzbe.gz

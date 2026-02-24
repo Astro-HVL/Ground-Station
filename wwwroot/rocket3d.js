@@ -1,28 +1,36 @@
 // Set the rocket's rotation from pitch, yaw, roll (degrees)
 function setRocket3DRotation(pitch, yaw, roll) {
     if (!rocket3dModel) return;
+
     // Swapped X/Z for correct orientation
     rocket3dModel.rotation.order = 'ZYX'; // yaw -> pitch -> roll
 
     // Rotation of the rocket model
-    rocket3dModel.rotation.z = THREE.MathUtils.degToRad(pitch || 0);  // roll (IMU Z)
-    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(yaw || 0);    // pitch (IMU Y)
-    rocket3dModel.rotation.x = THREE.MathUtils.degToRad(roll || 0);   // yaw (IMU X)
+    rocket3dModel.rotation.z = THREE.MathUtils.degToRad(pitch || 0); // roll (IMU Z)
+    rocket3dModel.rotation.y = THREE.MathUtils.degToRad(yaw || 0);   // pitch (IMU Y)
+    rocket3dModel.rotation.x = THREE.MathUtils.degToRad(roll || 0);  // yaw (IMU X)
 }
 
 let rocket3dScene, rocket3dCamera, rocket3dRenderer, rocket3dModel, axesGroup;
+const ROCKET_VIEW_SIZE = 160;
 
 function initRocket3D() {
     const container = document.getElementById('rocket3dContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    const initialWidth = container.clientWidth || ROCKET_VIEW_SIZE;
+    const initialHeight = container.clientHeight || ROCKET_VIEW_SIZE;
+
     rocket3dScene = new THREE.Scene();
-    rocket3dCamera = new THREE.PerspectiveCamera(60, container.clientWidth / container.clientHeight, 0.1, 1000);
+    rocket3dCamera = new THREE.PerspectiveCamera(60, initialWidth / initialHeight, 0.1, 1000);
     rocket3dCamera.position.set(0, 0, 4.2);
 
     rocket3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     rocket3dRenderer.setClearColor(0xffffff, 0);
     if (typeof rocket3dRenderer.setClearAlpha === 'function') rocket3dRenderer.setClearAlpha(0);
-    const size = 160;
-    rocket3dRenderer.setSize(size, size);
+    rocket3dRenderer.setSize(initialWidth, initialHeight);
     container.appendChild(rocket3dRenderer.domElement);
 
     // ---------- Rocket ----------
@@ -50,7 +58,7 @@ function initRocket3D() {
         rocketGroup.add(fin);
     }
 
-    // Rotate rocket 90° so it points along X instead of Y
+    // Rotate rocket 90 deg so it points along X instead of Y
     rocketGroup.rotation.z = -Math.PI / 2;
 
     rocketGroup.scale.set(1.3, 1.3, 1.3);
@@ -65,7 +73,12 @@ function initRocket3D() {
     axesGroup = new THREE.Group();
 
     // X axis (forward) - red
-    const xMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: axesOpacity, depthTest: false });
+    const xMat = new THREE.MeshBasicMaterial({
+        color: 0xff0000,
+        transparent: true,
+        opacity: axesOpacity,
+        depthTest: false
+    });
     const xGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const xAxis = new THREE.Mesh(xGeom, xMat);
     xAxis.position.set(axesLength / 2, -1.5, 0);
@@ -73,14 +86,24 @@ function initRocket3D() {
     axesGroup.add(xAxis);
 
     // Y axis (right) - green
-    const yMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: axesOpacity, depthTest: false });
+    const yMat = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,
+        transparent: true,
+        opacity: axesOpacity,
+        depthTest: false
+    });
     const yGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const yAxis = new THREE.Mesh(yGeom, yMat);
     yAxis.position.set(0, -1.5 + axesLength / 2, 0);
     axesGroup.add(yAxis);
 
     // Z axis (up) - blue
-    const zMat = new THREE.MeshBasicMaterial({ color: 0x0000ff, transparent: true, opacity: axesOpacity, depthTest: false });
+    const zMat = new THREE.MeshBasicMaterial({
+        color: 0x0000ff,
+        transparent: true,
+        opacity: axesOpacity,
+        depthTest: false
+    });
     const zGeom = new THREE.CylinderGeometry(axesRadius, axesRadius, axesLength, 16);
     const zAxis = new THREE.Mesh(zGeom, zMat);
     zAxis.position.set(0, -1.5, axesLength / 2);
@@ -100,15 +123,15 @@ function initRocket3D() {
 
     // ---------- Resize ----------
     function onResize() {
-        const width = size;
-        const height = size;
+        const width = container.clientWidth || ROCKET_VIEW_SIZE;
+        const height = container.clientHeight || ROCKET_VIEW_SIZE;
         rocket3dCamera.aspect = width / height;
         rocket3dCamera.updateProjectionMatrix();
         rocket3dRenderer.setSize(width, height);
     }
+
     window.addEventListener('resize', onResize);
     onResize();
-
     animateRocket3D();
 }
 

@@ -1,229 +1,59 @@
-﻿html, body {
+﻿html,
+body {
     margin: 0;
     height: 100%;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: "Segoe UI", sans-serif;
+}
+
+body {
     overflow-x: hidden;
 }
 
-:root{
-  --frame-blue: #0B1C2D;
-  --rightbar-w: 70px;
-  --bottombar-h: 140px;
+:root {
+    --frame-blue: #0b1c2d;
+    --panel-dark: #071033;
+    --accent-green: #49c46a;
+    --accent-green-text: #05260e;
+    --bar-gradient: linear-gradient(135deg, #000000, #3533cd);
+    --rightbar-w: 160px;
+    --bottombar-h: 180px;
+    --rocket-size: 160px;
+    --rocket-shift-x: 30px;
 }
 
-.ui-frame{
-  height: 100vh;
-  width: 100vw;
-  display: grid;
-  grid-template-columns: 1fr var(--rightbar-w);
-  grid-template-rows: 1fr var(--bottombar-h);
-  overflow: hidden;
-}
-
-.ui-main{
-  grid-column: 1 / 2;
-  grid-row: 1 / 2;
-  overflow: hidden;
-}
-
-.ui-rightbar{
-  grid-column: 2 / 3;
-  grid-row: 1 / 3;
-  background: var(--frame-blue);
-}
-
-.ui-bottombar{
-  grid-column: 1 / 2;
-  grid-row: 2 / 3;
-  background: var(--frame-blue);
-  z-index: 20000;
-}
-
-
-.live-container {
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-    align-items: stretch;
-    justify-content: space-between;
-    padding: 20px 32px;
-    width: 100%;
-    height: 100%;
-    box-sizing: border-box;
-}
-
-/* === Top section === */
-#top-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    width: 100%;
-    gap: 24px;
-}
-
-#top-right {
-    flex: 0 0 30%;
-    display: flex;
-    justify-content: flex-end;
-}
-
-#rocket3dContainer {
-    width: 120px;  /* larger 3D model */
-    height: 120px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    border-radius: 50%;
-    box-shadow: 0 0 30px rgba(255, 255, 255, 0.1);
-}
-
-.altitude-chart {
-    border: 1.5px solid #222;
-    border-radius: 6px;
-}
-
-/* === Bottom section === */
-#bottom-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    width: 100%;
-    gap: 24px;
-    padding-bottom: 18px;
-    z-index: 20000;
-}
-
-/* === Mode pill === */
-.mode-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-}
-
-.mode-title {
-    font-size: 26px;
-    font-weight: 700;
-    text-align: center;
-}
-
-.mode-pill {
-    display: flex;
-    gap: 16px;
-    margin-top: 12px;
-    padding: 20px 32px;
-    border-radius: 40px;
-    background: #071033;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    width: 100%;
-}
-
-.mode-dot {
-    padding: 8px 12px;
-    border-radius: 18px;
-    background: transparent;
-    color: #6d6d6d;
-    border: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.mode-dot.active-mode {
-    background: #49c46a;
-    color: #05260e;
-}
-
-.mode-box {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 14px 26px;
-    border-radius: 28px;
-    color: #ffffff;
-    background: transparent;
-    font-size: 18px;
-    font-weight: 700;
-    text-align: center;
-    min-width: 160px;
-}
-
-.mode-box.active-mode {
-    background: #49c46a;
-    color: #05260e;
-}
-
-/* === Metrics (Height, Speed, Accel) === */
-#bottom-right {
-    display: flex;
-    gap: 30px;
-    align-items: flex-end;
-    justify-content: flex-end;
-}
-
-.white-circle {
-    background: #fff;
-    width: 160px;
-    height: 160px;
-    border-radius: 50%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    color: #000;
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
-}
-
-.white-circle.hero-circle {
-    width: 260px;
-    height: 260px;
-    border-radius: 130px;
-    background: transparent;
-    color: #ffffff;
-    border: 2px solid rgba(0, 0, 0, 0.06);
-    position: relative;
-    top: 20px; /* move the hero circle 20px lower; adjust as needed */
-    box-sizing: border-box;
-}
-
-.white-circle.hero-circle .metric-title {
-    font-size: 36px;
-    font-weight: 800;
-    color: #ffffff
-}
-
-.white-circle.hero-circle .metric-value {
-    font-size: 50px;
-    margin: 8px 0;
-    font-weight: 800;
-}
-
-.white-circle.hero-circle .metric-unit {
-    font-size: 36px;
-    font-weight: 700;
-}
-
-.metric-title {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 6px;
-}
-
-.metric-value {
-    font-size: 28px;
-    font-weight: 700;
-}
-
-.metric-unit {
-    font-size: 14px;
-    opacity: 0.7;
-}
-
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
     color: #fff;
 }
 
+table,
+th,
+td {
+    color: #fff;
+    border-color: #333;
+}
+
+thead,
+th {
+    background: #111;
+    color: #fff;
+}
+
+@keyframes blinkBackground {
+    0% { background-color: #a00; }
+    50% { background-color: #000; }
+    100% { background-color: #a00; }
+}
+
+.blink-red {
+    animation: blinkBackground 1s infinite;
+}
+
+/* Shared dashboard/chart styles (used by index page) */
 #charts {
     display: flex;
     flex-wrap: wrap;
@@ -249,7 +79,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 #statusPanel {
-    margin: 24px 0 0 0;
+    margin: 24px 0 0;
     padding: 16px;
     border: 1.5px solid #222;
     background: #111;
@@ -259,144 +89,172 @@ h1, h2, h3, h4, h5, h6 {
     box-sizing: border-box;
 }
 
-table, th, td {
-    color: #fff;
-    border-color: #333;
+/* Live page layout */
+.live-page {
+    background: #000;
 }
 
-thead, th {
-    background: #111;
-    color: #fff;
-}
-
-@keyframes blinkBackground {
-    0%   { background-color: #a00; }
-    50%  { background-color: #000; }
-    100% { background-color: #a00; }
-}
-
-.blink-red {
-    animation: blinkBackground 1s infinite;
-}
-
-/* Styles for live_data.html */
-.left-col {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    width: 160px;
-}
-
-.center-col {
-    flex: 1 1 auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.right-col {
-    width: 360px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    align-items: center;
-}
-
-.metric-card.large {
-    width: 140px;
-    height: 140px;
-    border-radius: 70px;
-    background: #071033;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.metric-card .metric-title {
-    font-size: 14px;
-    opacity: 0.9;
-}
-
-.metric-card .metric-value {
-    font-size: 26px;
+.live-page #flightTimer {
+    position: fixed;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 28px;
     font-weight: 700;
-    margin-top: 6px;
+    color: #fff;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+    z-index: 1000;
 }
 
-.metric-card .metric-unit {
-    font-size: 13px;
-    opacity: 0.8;
-}
-
-/* hero live_data enhancements */
-.graph-grid-large {
+.live-page .live-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: stretch;
+    justify-content: space-between;
     width: 100%;
     height: 100%;
-    background-image: linear-gradient(to right, rgba(255,255,255,0.04) 1px, transparent 1px),
-                      linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
-    background-size: 18px 18px;
-    border-left: 6px solid gold;
-    border-bottom: 6px solid gold;
+    padding: 20px 32px;
     box-sizing: border-box;
 }
 
-.metric-circle {
-    width: 240px;
-    height: 240px;
-    border-radius: 120px;
-    background: #e8e8e8;
+.live-page #top-row {
+    display: flex;
+    gap: 24px;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.live-page #top-left {
+    flex: 0 0 48%;
+}
+
+.live-page #top-right {
+    flex: 0 0 28%;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.live-page #altitudeChart {
+    display: block;
+    width: 640px;
+    height: 420px;
+    background: #18356a;
+    border: 1.5px solid #222;
+    border-radius: 6px;
+}
+
+.live-page .white-circle,
+.live-page .white-circle.hero-circle {
+    background: transparent;
+    box-shadow: none;
+    border: none;
+}
+
+.live-page #rocket3dContainer {
+    width: var(--rocket-size);
+    height: var(--rocket-size);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    position: relative;
+    transform: translateX(var(--rocket-shift-x));
+    transition: transform 0.18s ease;
+    z-index: 20000;
+}
+
+.live-page #bottom-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    width: 100%;
+    gap: 24px;
+    padding-bottom: 18px;
+    z-index: 20000;
+}
+
+.live-page .mode-section {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    padding: 18px 12px;
-    color: #000;
-    border: 1px solid rgba(197, 21, 21, 0.06);
-    box-sizing: border-box;
+    gap: 16px;
 }
 
-.metric-circle .metric-title {
-    font-size: 28px;
-    margin-top: 8px;
+.live-page .mode-label {
+    color: #fff;
+    font-size: 36px;
+    margin-bottom: 6px;
 }
 
-.metric-circle .metric-value {
-    font-size: 56px;
-    font-weight: 400;
-    line-height: 1;
+.live-page .mode-pill {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    padding: 20px 32px;
+    border-radius: 40px;
+    background: transparent;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
 }
 
-.metric-circle .metric-unit {
-    font-size: 20px;
-    margin-bottom: 12px;
+.live-page .mode-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 160px;
+    padding: 14px 26px;
+    border-radius: 28px;
+    font-size: 18px;
+    font-weight: 700;
+    text-align: center;
+    color: #fff;
+    background: transparent;
 }
 
+.live-page .mode-box.active-mode {
+    background: var(--accent-green);
+    color: var(--accent-green-text);
+}
 
-.bottom-bar {
+.live-page #bottom-right {
+    display: flex;
+    gap: 30px;
+    align-items: flex-end;
+    justify-content: flex-end;
+}
+
+.live-page .bottom-bar {
     position: fixed;
     bottom: 0;
     left: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100vw;
-    height: 180px; /* increased height so circular tiles sit comfortably */
-    background: linear-gradient(135deg, #000000, #3533cd);
+    height: var(--bottombar-h);
+    padding: 8px 24px;
+    box-sizing: border-box;
+    background: var(--bar-gradient);
     backdrop-filter: blur(6px);
     z-index: 500;
     pointer-events: auto;
 }
-.bottom-bar {
+
+.live-page .bottom-bar-inner {
     display: flex;
+    gap: 30px;
     align-items: center;
     justify-content: center;
-    padding: 8px 24px;
-}
-.mode-pill{
-  background: transparent; 
-  transition: background 0.3s ease;
+    height: 100%;
+    padding: 12px 24px;
 }
 
-/* Ensure metric tiles on the bottom bar look good and keep JS ids functioning */
-.bottom-bar .metric-card.large {
+.live-page .metric-card.large {
     width: 160px;
     height: 160px;
     border-radius: 80px;
@@ -404,63 +262,49 @@ thead, th {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #071033;
-    color: #fff;
     box-sizing: border-box;
+    color: #fff;
+    background: transparent;
+    border: none;
+    box-shadow: none;
 }
-.bottom-bar .metric-title { font-size: 18px; opacity: 0.95; }
-.bottom-bar .metric-value { font-size: 40px; font-weight:800; margin-top:8px; }
-.bottom-bar .metric-unit { font-size: 16px; opacity:0.9; }
 
-/* Fixed right-side bar matching the bottom bar's color scheme and width */
-.right-fixed-bar {
+.live-page .metric-card .metric-title {
+    font-size: 18px;
+    opacity: 0.95;
+}
+
+.live-page .metric-card .metric-value {
+    margin-top: 8px;
+    font-size: 40px;
+    font-weight: 800;
+}
+
+.live-page .metric-card .metric-unit {
+    font-size: 16px;
+    opacity: 0.9;
+}
+
+.live-page .right-fixed-bar {
     position: fixed;
     top: 0;
     right: 0;
-    height: 100vh;
-    width: 160px; /* slightly wider to match bottom bar increase */
-    background: linear-gradient(135deg, #000000, #3533cd);
-    backdrop-filter: blur(6px);
-    z-index: 500;
     display: flex;
     align-items: center;
     justify-content: center;
+    width: var(--rightbar-w);
+    height: 100vh;
     padding: 12px 8px;
     box-sizing: border-box;
+    background: var(--bar-gradient);
+    backdrop-filter: blur(6px);
+    z-index: 500;
 }
 
-/* inner container for future content (icons, status, etc.) */
-.right-fixed-bar .right-inner {
+.live-page .right-fixed-bar .right-inner {
+    width: 100%;
     display: flex;
     flex-direction: column;
-    gap: 12px;
     align-items: center;
-    width: 100%;
+    gap: 12px;
 }
-
-/* Make circular tiles transparent (override inline styles if present) */
-.white-circle,
-.white-circle.hero-circle,
-.bottom-bar .metric-card.large {
-    background: transparent !important;
-    box-shadow: none !important;
-    border: none !important;
-}
-
-/* Rocket container: transparent fill but visible circular border and larger size */
-#rocket3dContainer {
-    background: transparent !important;
-    width: 160px !important;
-    height: 160px !important;
-    border-radius: 50% !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    z-index: 20000;
-    position: relative !important;
-    transform: translateX(160px) !important; /* move fully into right bar; adjust value as needed */
-    transition: transform 0.18s ease;
-}
-
-/* If you prefer a subtle outline instead of no border, uncomment below and remove the `border: none` above */
-/* .bottom-bar .metric-card.large { border: 1px solid rgba(255,255,255,0.06) !important; } */

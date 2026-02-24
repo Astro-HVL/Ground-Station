@@ -81,11 +81,15 @@ function createAltChart() {
         x: {
           display: true,
           title: { display: true, text: 'Time (s)', color: '#fff', font: { size: 18 } },
-          ticks: { color: '#fff' }
+          ticks: { color: '#fff' },
+          grid: { color: 'rgba(255,255,255,0.15)' },
+          border: { color: '#fff' }
         },
         y_alt: {
           title: { display: true, text: 'Altitude (m)', color: '#fff', font: { size: 18 } },
-          ticks: { color: '#fff' }
+          ticks: { color: '#fff' },
+          grid: { color: 'rgba(255,255,255,0.15)' },
+          border: { color: '#fff' }
         }
       },
       plugins: { legend: { labels: { color: '#fff' } } }
