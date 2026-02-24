@@ -1,411 +1,506 @@
-const conn = (typeof signalR !== 'undefined' && signalR?.HubConnectionBuilder)
-  ? new signalR.HubConnectionBuilder().withUrl('/telemetry').withAutomaticReconnect().build()
-  : null;
+/**
+ * Minimal Cesium app: load Rocket.glb and move it using telemetry (ax/ay/az + yaw/pitch/roll).
+ * This keeps the logic simple so you can add advanced math later.
+ */
+(() => {
+  /**
+   * Cesium Ion access token (required for default world terrain).
+   * @type {string}
+   */
+  const ION_TOKEN =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZDEzYmIxOS0yNDk0LTQ0NDItYjNlNy03NWU4Y2I4N2EzY2IiLCJpZCI6MzUyMDI0LCJpYXQiOjE3NjA5MDUyMTR9.aAyv_MXnZaN9y2QgSNRglNe5JyAMouG9lnoXJtJ-61E";
+  Cesium.Ion.defaultAccessToken = ION_TOKEN;
+  const serverBase =
+    window.location.protocol === "file:" || window.location.origin === "null"
+      ? "http://localhost:5242"
+      : window.location.origin;
 
-(async () => {
-  const { INSState, CFParams, Vec3, ins_update, euler_from_q } =
-    await import('./worker.js');
-
-// ---- Telemetry ingestion state ----
-const telemetryQueue = [];
-const directFixQueue = [];
-let csvHeader = null;
-let csvRemainder = '';
-let lastParseWarning = 0;
-let forceReinitOnNextSample = true;
-let useDirectTelemetry = false;
-
-// ---- INS core state (declared early so telemetry handlers can access safely) ----
-const st = new INSState();
-const cf = new CFParams(0.02, 0.02, 0.05);
-const dtINS = 0.01; // 100 Hz INS update step
-const g0 = 9.80665;
-let P0 = 101325.0; // Pa (reference pressure)
-let gyro = new Vec3(0,0,0);              // rad/s
-let acc  = new Vec3(0,0,-g0);            // m/s^2 (specific force)
-let mag  = new Vec3(0.2, 0.0, -0.45);    // calibrated, arbitrary units
-let P = P0;                              // Pa (baro)
-let decl = 0.0;                          // magnetic declination (rad)
-
-function normalizeHeaderName(name = '') {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-function normalizedAliases(list) {
-  return list.map(normalizeHeaderName);
-}
-
-const aliasMap = {
-  timestamp: normalizedAliases(['timestamp', 'time', 'utc', 't', 'epoch', 'epochns', 'epochms']),
-  gyroX: normalizedAliases(['gyro_x', 'gyrox', 'gx', 'p', 'wx', 'omegax']),
-  gyroY: normalizedAliases(['gyro_y', 'gyroy', 'gy', 'q', 'wy', 'omegay']),
-  gyroZ: normalizedAliases(['gyro_z', 'gyroz', 'gz', 'r', 'wz', 'omegaz']),
-  accX: normalizedAliases(['acc_x', 'accel_x', 'ax', 'accx', 'fx', 'forcex']),
-  accY: normalizedAliases(['acc_y', 'accel_y', 'ay', 'accy', 'fy', 'forcey']),
-  accZ: normalizedAliases(['acc_z', 'accel_z', 'az', 'accz', 'fz', 'forcez']),
-  magX: normalizedAliases(['mag_x', 'magnet_x', 'mx', 'magx']),
-  magY: normalizedAliases(['mag_y', 'magnet_y', 'my', 'magy']),
-  magZ: normalizedAliases(['mag_z', 'magnet_z', 'mz', 'magz']),
-  pressure: normalizedAliases(['pressure', 'baro', 'barometer', 'p', 'press']),
-  referencePressure: normalizedAliases(['p0', 'pref', 'pressure0', 'refpressure', 'pzero', 'pressure_ref']),
-  declination: normalizedAliases(['declination', 'magdecl', 'decl', 'magneticdeclination']),
-};
-
-const defaultOrder = {
-  timestamp: 0,
-  gyroX: 1,
-  gyroY: 2,
-  gyroZ: 3,
-  accX: 4,
-  accY: 5,
-  accZ: 6,
-  magX: 7,
-  magY: 8,
-  magZ: 9,
-  pressure: 10,
-  referencePressure: 11,
-  declination: 12,
-};
-
-function parseMaybeNumber(value) {
-  if (value === null || value === undefined) return null;
-  const trimmed = String(value).trim();
-  if (trimmed === '') return null;
-  const num = Number(trimmed);
-  return Number.isFinite(num) ? num : null;
-}
-
-function resolveColumn(key, parts) {
-  let index = -1;
-  if (csvHeader) {
-    const aliases = aliasMap[key] ?? [];
-    index = csvHeader.findIndex((header) => aliases.includes(header));
-  }
-  if (index === -1 && defaultOrder[key] !== undefined) {
-    index = defaultOrder[key];
-  }
-  if (index < 0 || index >= parts.length) return null;
-  return parts[index];
-}
-
-function parseTimestamp(raw) {
-  if (!raw && raw !== 0) return null;
-  const trimmed = String(raw).trim();
-  if (trimmed === '') return null;
-  const numericValue = Number(trimmed);
-  if (Number.isFinite(numericValue)) {
-    // Assume milliseconds if value looks like Unix epoch (>= 1e12), seconds otherwise
-    const millis = numericValue > 1e11 ? numericValue : numericValue * 1000;
-    const dateFromNumber = new Date(millis);
-    return Number.isNaN(dateFromNumber.valueOf()) ? null : dateFromNumber;
-  }
-  const dateFromString = new Date(trimmed);
-  return Number.isNaN(dateFromString.valueOf()) ? null : dateFromString;
-}
-
-function toRadiansIfNeeded(value) {
-  if (value === null || value === undefined) return null;
-  const absVal = Math.abs(value);
-  if (!Number.isFinite(absVal)) return null;
-  return absVal > Math.PI ? (value * Math.PI) / 180.0 : value;
-}
-
-function buildTelemetrySample(parts) {
-  const gyroX = parseMaybeNumber(resolveColumn('gyroX', parts));
-  const gyroY = parseMaybeNumber(resolveColumn('gyroY', parts));
-  const gyroZ = parseMaybeNumber(resolveColumn('gyroZ', parts));
-  const accX = parseMaybeNumber(resolveColumn('accX', parts));
-  const accY = parseMaybeNumber(resolveColumn('accY', parts));
-  const accZ = parseMaybeNumber(resolveColumn('accZ', parts));
-  const magX = parseMaybeNumber(resolveColumn('magX', parts));
-  const magY = parseMaybeNumber(resolveColumn('magY', parts));
-  const magZ = parseMaybeNumber(resolveColumn('magZ', parts));
-  const pressure = parseMaybeNumber(resolveColumn('pressure', parts));
-  const referencePressure = parseMaybeNumber(resolveColumn('referencePressure', parts));
-  const declination = parseMaybeNumber(resolveColumn('declination', parts));
-  const timestampRaw = resolveColumn('timestamp', parts);
-
-  if ([gyroX, gyroY, gyroZ, accX, accY, accZ].some((v) => v === null)) {
-    return null;
-  }
-
-  const sample = {
-    timestamp: parseTimestamp(timestampRaw),
-    gyro: new Vec3(gyroX, gyroY, gyroZ),
-    acc: new Vec3(accX, accY, accZ),
-    mag: (magX !== null && magY !== null && magZ !== null)
-      ? new Vec3(magX, magY, magZ)
-      : null,
-    pressure,
-    referencePressure,
-    declinationRad: toRadiansIfNeeded(declination),
+  /**
+   * Launch site (degrees + meters). Used as the ENU origin.
+   * @type {{lon: number, lat: number, h: number}}
+   */
+  let launchSite = {
+    lon: 5.349723834309746,
+    lat: 60.370157623938304,
+    h: 100,
   };
-  return sample;
-}
 
-function parseTelemetryCsvLine(line) {
-  const trimmed = line.trim();
-  if (trimmed === '') return null;
-  const parts = trimmed.split(',').map((part) => part.trim());
-
-  // Detect header when no numeric content exists
-  const hasNumeric = parts.some((part) => parseMaybeNumber(part) !== null);
-  if (!csvHeader && !hasNumeric) {
-    csvHeader = parts.map(normalizeHeaderName);
-    return null;
-  }
-
-  const sample = buildTelemetrySample(parts);
-  if (!sample && Date.now() - lastParseWarning > 5000) {
-    console.warn('Skipping CSV telemetry line due to missing required fields:', trimmed);
-    lastParseWarning = Date.now();
-  }
-  return sample;
-}
-
-function ingestTelemetryCsvPayload(payload) {
-  if (typeof payload !== 'string') {
-    if (Date.now() - lastParseWarning > 5000) {
-      console.warn('Telemetry payload was not a string; ignoring payload.');
-      lastParseWarning = Date.now();
-    }
-    return;
-  }
-  const text = csvRemainder + payload;
-  const lines = text.split(/\r?\n/);
-  csvRemainder = lines.pop() ?? '';
-  for (const line of lines) {
-    const sample = parseTelemetryCsvLine(line);
-    if (sample) {
-      telemetryQueue.push(sample);
-    }
-  }
-}
-
-function flushTelemetryRemainder() {
-  if (!csvRemainder) return;
-  const sample = parseTelemetryCsvLine(csvRemainder);
-  csvRemainder = '';
-  if (sample) telemetryQueue.push(sample);
-}
-
-async function setupTelemetryConnection() {
-  if (!conn) {
-    console.warn('SignalR not found; you can feed telemetry via window.enqueueCsvTelemetry(csvText).');
-    return;
-  }
-  const handlers = [
-    'CsvTelemetry',
-    'TelemetryCsv',
-    'telemetryCsv',
-    'Telemetry',
-    'telemetry',
-    'csv',
-  ];
-  handlers.forEach((eventName) => conn.on(eventName, ingestTelemetryCsvPayload));
-  conn.on('telemetry', ingestTelemetryJsonPayload);
-  try {
-    await conn.start();
-    console.info('Telemetry SignalR connection established.');
-  } catch (err) {
-    console.error('Failed to connect to telemetry SignalR hub:', err);
-  }
-}
-
-function applyTelemetrySample(sample) {
-  if (!sample) return;
-  if (sample.gyro) gyro = sample.gyro;
-  if (sample.acc) acc = sample.acc;
-  if (sample.mag) mag = sample.mag;
-  if (sample.pressure !== null && sample.pressure !== undefined) {
-    P = sample.pressure;
-  }
-  if (sample.referencePressure !== null && sample.referencePressure !== undefined) {
-    P0 = sample.referencePressure;
-  } else if (forceReinitOnNextSample && sample.pressure !== null && sample.pressure !== undefined) {
-    P0 = sample.pressure;
-  }
-  if (sample.declinationRad !== null && sample.declinationRad !== undefined) {
-    decl = sample.declinationRad;
-  }
-  if (forceReinitOnNextSample && st.inited) {
-    st.inited = false;
-  }
-  forceReinitOnNextSample = false;
-}
-
-function ingestTelemetryJsonPayload(payload) {
-  if (!payload || payload.type !== 'telemetry') return;
-  const lat = Number(payload.lat);
-  const lon = Number(payload.lon);
-  const alt = Number(payload.alt);
-  if (![lat, lon, alt].every(Number.isFinite)) return;
-
-  const rawTime = Number(payload.t);
-  const when = Number.isFinite(rawTime)
-    ? Cesium.JulianDate.addSeconds(
-        Cesium.JulianDate.unixEpoch,
-        rawTime / 1000,
-        new Cesium.JulianDate()
-      )
-    : Cesium.JulianDate.now();
-
-  directFixQueue.push({
-    when,
-    lat,
-    lon,
-    alt,
-    yawDeg: Number(payload.yaw) || 0,
-    pitchDeg: Number(payload.pitch) || 0,
-    rollDeg: Number(payload.roll) || 0,
+  /**
+   * Create the Cesium viewer and enable animation.
+   * @type {Cesium.Viewer}
+   */
+  const viewer = new Cesium.Viewer("cesiumContainer", {
+    terrain: Cesium.Terrain.fromWorldTerrain(),
+    shouldAnimate: true,
   });
-  useDirectTelemetry = true;
-}
 
-function simulateNextSensorSample() {
-  if (telemetryQueue.length === 0) {
-    flushTelemetryRemainder();
-    if (telemetryQueue.length === 0) return;
-  }
-  const sample = telemetryQueue.shift();
-  applyTelemetrySample(sample);
-}
+  /**
+   * Position samples for smooth motion.
+   * @type {Cesium.SampledPositionProperty}
+   */
+  const position = new Cesium.SampledPositionProperty();
+  position.setInterpolationOptions({
+    interpolationAlgorithm: Cesium.LinearApproximation,
+    interpolationDegree: 1,
+  });
+  position.forwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+  position.forwardExtrapolationDuration = Number.POSITIVE_INFINITY;
+  position.backwardExtrapolationType = Cesium.ExtrapolationType.HOLD;
+  position.backwardExtrapolationDuration = Number.POSITIVE_INFINITY;
+  const initialTime = Cesium.JulianDate.now();
+  const initialTime2 = Cesium.JulianDate.addSeconds(
+    initialTime,
+    1,
+    new Cesium.JulianDate(),
+  );
+  const initialPos = Cesium.Cartesian3.fromDegrees(
+    launchSite.lon,
+    launchSite.lat,
+    launchSite.h,
+  );
+  position.addSample(initialTime, initialPos);
+  position.addSample(initialTime2, initialPos);
 
-// Expose helper for manual CSV injection (useful during development)
-if (typeof window !== 'undefined') {
-  window.enqueueCsvTelemetry = ingestTelemetryCsvPayload;
-  window.resetInsStateFromTelemetry = () => {
-    forceReinitOnNextSample = true;
-  };
-}
-
-await setupTelemetryConnection();
-
-// ---- Cesium setup ----
-Cesium.Ion.defaultAccessToken =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI0ZDEzYmIxOS0yNDk0LTQ0NDItYjNlNy03NWU4Y2I4N2EzY2IiLCJpZCI6MzUyMDI0LCJpYXQiOjE3NjA5MDUyMTR9.aAyv_MXnZaN9y2QgSNRglNe5JyAMouG9lnoXJtJ-61E';
-
-const viewer = new Cesium.Viewer('cesiumContainer', {
-  terrain: Cesium.Terrain.fromWorldTerrain(),
-  shouldAnimate: true,
-});
-
-// 1) ENU origin (your launch site)
-const launchSite = { lon: 5.349723834309746, lat: 60.370157623938304, h: 100 };
-const originFixed = Cesium.Cartesian3.fromDegrees(launchSite.lon, launchSite.lat, launchSite.h);
-const enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(originFixed);
-
-// ENU -> ECEF helper
-function enuToEcef(e, n, u) {
-  const local = new Cesium.Cartesian3(e, n, u); // meters ENU
-  return Cesium.Matrix4.multiplyByPoint(enuToFixed, local, new Cesium.Cartesian3());
-}
-
-// 2) Time-based property for smooth animation
-const position = new Cesium.SampledPositionProperty();
-position.setInterpolationOptions({
-  interpolationAlgorithm: Cesium.LinearApproximation,
-  interpolationDegree: 1,
-});
-
-
-const rocketPathStyle = {
-  show: true,
-  width: 6,
-  trailTime: 60,
-  material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.25, color: Cesium.Color.RED }),
-};
-
-const rocketEntityOptions = {
-  position,
-  path: rocketPathStyle,
-  model: {
-    uri: 'models/Rocket.glb',
-    minimumPixelSize: 32,
-    maximumScale: 500,
-    silhouetteColor: Cesium.Color.WHITE,
-    silhouetteSize: 1,
-  },
-};
-
-const rocket = viewer.entities.add(rocketEntityOptions);
-viewer.trackedEntity = rocket;
-
-// 4) Clock for live-style playback
-viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
-viewer.clock.multiplier = 1;
-viewer.clock.shouldAnimate = true;
-
-// ---- INS setup ----
-// Core state objects declared earlier so telemetry handlers can mutate them safely.
-
-// First update initializes state
-ins_update(st, gyro, acc, mag, P, P0, decl, dtINS, cf);
-
-// Seed a little history so the path shows immediately
-const t0 = Cesium.JulianDate.now();
-for (let k = 0; k <= 5; k++) {
-  const tk = Cesium.JulianDate.addSeconds(t0, -5 + k, new Cesium.JulianDate());
-  const pk = enuToEcef(st.p_e.x, st.p_e.y, st.p_e.z);
-  position.addSample(tk, pk);
-}
-
-// If you have real sensors, set gyro/acc/mag/P here instead of simulateNextSensorSample().
-
-// Visual sampling rate (lower than INS rate is fine; Cesium interpolates)
-const visualDt = 0.01; // 20 Hz
-setInterval(() => {
-  if (useDirectTelemetry && directFixQueue.length) {
-    const fix = directFixQueue.shift();
-    const pos = Cesium.Cartesian3.fromDegrees(fix.lon, fix.lat, fix.alt);
-    position.addSample(fix.when, pos);
-
-    const hpr = new Cesium.HeadingPitchRoll(
-      Cesium.Math.toRadians(fix.yawDeg),
-      Cesium.Math.toRadians(fix.pitchDeg),
-      Cesium.Math.toRadians(fix.rollDeg)
-    );
-    rocket.orientation = new Cesium.ConstantProperty(
-      Cesium.Transforms.headingPitchRollQuaternion(pos, hpr)
-    );
-
-    if (Cesium.JulianDate.greaterThan(fix.when, viewer.clock.currentTime)) {
-      viewer.clock.currentTime = fix.when;
-    }
-
-    const newStop = Cesium.JulianDate.addSeconds(fix.when, 120, new Cesium.JulianDate());
-    if (!viewer.clock.stopTime || Cesium.JulianDate.greaterThan(newStop, viewer.clock.stopTime)) {
-      viewer.clock.stopTime = newStop;
-    }
-    return;
-  }
-
-  // Run INS multiple steps per visual frame
-  const steps = Math.max(1, Math.round(visualDt / dtINS));
-  for (let i = 0; i < steps; i++) {
-    simulateNextSensorSample();
-    ins_update(st, gyro, acc, mag, P, P0, decl, dtINS, cf);
-  }
-
-  // Add a Cesium sample at current time using absolute ENU position
-  const now = Cesium.JulianDate.now();
-  const ecef = enuToEcef(st.p_e.x, st.p_e.y, st.p_e.z);
-  position.addSample(now, ecef);
-
-  // Orientation from INS (yaw/pitch/roll around ENU)
-  const {roll, pitch, yaw} = euler_from_q(st.q);
-  const hpr = new Cesium.HeadingPitchRoll(yaw, pitch, roll);
-  rocket.orientation = new Cesium.ConstantProperty(
-    Cesium.Transforms.headingPitchRollQuaternion(ecef, hpr)
+  viewer.clock.startTime = initialTime.clone();
+  viewer.clock.currentTime = initialTime.clone();
+  viewer.clock.stopTime = Cesium.JulianDate.addSeconds(
+    initialTime,
+    120,
+    new Cesium.JulianDate(),
   );
 
-  // Extend stopTime so timeline keeps flowing
-  const newStop = Cesium.JulianDate.addSeconds(now, 120, new Cesium.JulianDate());
-  if (!viewer.clock.stopTime || Cesium.JulianDate.greaterThan(newStop, viewer.clock.stopTime)) {
-    viewer.clock.stopTime = newStop;
-  }
-}, visualDt * 1000);
+  /**
+   * Style for the flight path.
+   * @type {Cesium.PathGraphics.ConstructorOptions}
+   */
+  const rocketPathStyle = {
+    show: true,
+    width: 6,
+    leadTime: 0,
+    trailTime: 300,
+    resolution: 1,
+    material: new Cesium.PolylineGlowMaterialProperty({
+      glowPower: 0.25,
+      color: Cesium.Color.RED,
+    }),
+  };
 
-// Optional: initial camera move
-viewer.zoomTo(rocket);
+  /**
+   * Add the rocket entity.
+   * @type {Cesium.Entity}
+   */
+  const rocket = viewer.entities.add({
+    position,
+    path: rocketPathStyle,
+    model: {
+      uri: `${serverBase}/models/Rocket.glb`,
+      minimumPixelSize: 32,
+      maximumScale: 500,
+      silhouetteColor: Cesium.Color.WHITE,
+      silhouetteSize: 1,
+    },
+  });
+  // Side-follow camera offset (east, north, up in meters).
+  rocket.viewFrom = new Cesium.Cartesian3(1800, 0, 500);
+  viewer.trackedEntity = rocket;
+  viewer.zoomTo(
+    rocket,
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(90),
+      Cesium.Math.toRadians(-10),
+      2500,
+    ),
+  );
+
+  // Fallback trail polyline to keep history visible even if clock drifts.
+  const trailPositions = [initialPos.clone()];
+  const MAX_TRAIL_POINTS = 3000;
+  viewer.entities.add({
+    polyline: {
+      positions: new Cesium.CallbackProperty(() => trailPositions, false),
+      width: 4,
+      material: Cesium.Color.ORANGE.withAlpha(0.9),
+    },
+  });
+  /**
+   * Drive the clock from telemetry samples to avoid drift.
+   */
+  viewer.clock.clockStep = Cesium.ClockStep.TICK_DEPENDENT;
+  viewer.clock.multiplier = 1;
+  viewer.clock.shouldAnimate = false;
+  viewer.clock.clockRange = Cesium.ClockRange.UNBOUNDED;
+
+  /**
+   * ENU (east-north-up) transform for our local origin.
+   */
+  let originFixed = Cesium.Cartesian3.fromDegrees(
+    launchSite.lon,
+    launchSite.lat,
+    launchSite.h,
+  );
+  let enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(originFixed);
+
+  /**
+   * Convert local ENU meters to ECEF (world) coordinates.
+   * @param {number} e East meters
+   * @param {number} n North meters
+   * @param {number} u Up meters
+   * @returns {Cesium.Cartesian3}
+   */
+  function enuToEcef(e, n, u) {
+    const local = new Cesium.Cartesian3(e, n, u);
+    return Cesium.Matrix4.multiplyByPoint(
+      enuToFixed,
+      local,
+      new Cesium.Cartesian3(),
+    );
+  }
+
+  /**
+   * Parse a number safely.
+   * @param {unknown} value
+   * @returns {number | null}
+   */
+  function toNumber(value) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  /**
+   * Motion state for basic integration when we do not have GPS position.
+   */
+  const POSITION_SCALE = 1;
+  const MAX_SPEED_MPS = 500;
+  const MAX_STEP_SECONDS = 1;
+  const motionState = {
+    lastT: null,
+    t0: null,
+    startTime: Cesium.JulianDate.now(),
+    posENU: new Cesium.Cartesian3(0, 0, 0),
+    velENU: new Cesium.Cartesian3(0, 0, 0),
+    lastPosFixed: initialPos.clone(),
+  };
+
+  /**
+   * Convert yaw/pitch to a forward unit vector in ENU.
+   * @param {number} yawDeg
+   * @param {number} pitchDeg
+   * @returns {Cesium.Cartesian3}
+   */
+  function forwardFromYawPitch(yawDeg, pitchDeg) {
+    const yaw = Cesium.Math.toRadians(yawDeg || 0);
+    const pitch = Cesium.Math.toRadians(pitchDeg || 0);
+    const cosP = Math.cos(pitch);
+    return new Cesium.Cartesian3(
+      Math.sin(yaw) * cosP, // east
+      Math.cos(yaw) * cosP, // north
+      Math.sin(pitch), // up
+    );
+  }
+
+  /**
+   * Check if lat/lon are plausible degrees.
+   * @param {number | null} lat
+   * @param {number | null} lon
+   * @returns {boolean}
+   */
+  function isValidLatLon(lat, lon) {
+    if (lat === null || lon === null) return false;
+    return lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  /**
+   * Convert GPS values to degrees if the payload uses microdegrees.
+   * @param {number | null} lat
+   * @param {number | null} lon
+   * @returns {{lat: number | null, lon: number | null}}
+   */
+  function normalizeLatLon(lat, lon) {
+    if (lat === null || lon === null) return { lat: null, lon: null };
+    if (isValidLatLon(lat, lon)) return { lat, lon };
+
+    const microLat = lat / 1e6;
+    const microLon = lon / 1e6;
+    if (isValidLatLon(microLat, microLon)) {
+      return { lat: microLat, lon: microLon };
+    }
+
+    return { lat: null, lon: null };
+  }
+
+  /**
+   * Parse CSV telemetry string into an object.
+   * Format (server/Program.cs): t,seq,ax,ay,az,pitch,roll,yaw,temp,vel,press,lat,lon,alt,state
+   * @param {string} csvLine - Raw CSV string from telemetry
+   * @returns {object | null}
+   */
+  function parseTelemetry(csvLine) {
+    if (typeof csvLine !== "string") return null;
+
+    // Remove "RX: " prefix if present
+    const cleaned = csvLine.replace(/^RX:\s*/, "").trim();
+    const parts = cleaned.split(",");
+
+    if (parts.length < 15) {
+      console.warn("Invalid telemetry format:", csvLine);
+      return null;
+    }
+
+    return {
+      type: "telemetry",
+      t: parseFloat(parts[0]), // time (seconds)
+      seq: parseInt(parts[1]), // sequence id
+      ax: parseFloat(parts[2]), // acceleration X
+      ay: parseFloat(parts[3]), // acceleration Y
+      az: parseFloat(parts[4]), // acceleration Z
+      pitch: parseFloat(parts[5]), // pitch (degrees)
+      roll: parseFloat(parts[6]), // roll (degrees)
+      yaw: parseFloat(parts[7]), // yaw (degrees)
+      temp: parseFloat(parts[8]), // temperature
+      vel: parseFloat(parts[9]), // velocity (m/s)
+      press: parseFloat(parts[10]), // pressure
+      lat: parseFloat(parts[11]), // latitude (deg)
+      lon: parseFloat(parts[12]), // longitude (deg)
+      alt: parseFloat(parts[13]), // altitude (m)
+      state: parseInt(parts[14]), // state
+    };
+  }
+
+  /**
+   * Move the rocket based on a telemetry sample.
+   * Expected fields (numbers): t, ax, ay, az, pitch, roll, yaw, vel, lat, lon, alt.
+   * If lat/lon look valid, we use GPS position directly.
+   * Otherwise we integrate a velocity vector derived from yaw/pitch + vel (or accel).
+   * @param {object} sample
+   */
+  function moveAlongCsvData(sample) {
+    console.log("Processing sample:", sample);
+
+    if (!sample || sample.type !== "telemetry") {
+      console.warn("Sample rejected - wrong type or null");
+      return;
+    }
+
+    const t = toNumber(sample.t);
+    const ax = toNumber(sample.ax) ?? 0;
+    const ay = toNumber(sample.ay) ?? 0;
+    const az = toNumber(sample.az) ?? 0;
+    const yaw = toNumber(sample.yaw) ?? 0;
+    const pitch = toNumber(sample.pitch) ?? 0;
+    const roll = toNumber(sample.roll) ?? 0;
+    const vel = toNumber(sample.vel);
+    const rawLat = toNumber(sample.lat);
+    const rawLon = toNumber(sample.lon);
+    const normalizedLatLon = normalizeLatLon(rawLat, rawLon);
+    const lat = normalizedLatLon.lat;
+    const lon = normalizedLatLon.lon;
+    const alt = toNumber(sample.alt) ?? 0;
+
+    console.log(
+      `t=${t}, ax=${ax}, ay=${ay}, az=${az}, yaw=${yaw}, pitch=${pitch}, vel=${vel}`,
+    );
+
+    if (t === null) {
+      console.warn("Invalid time value");
+      return;
+    }
+
+    if (motionState.t0 === null) {
+      motionState.t0 = t;
+      motionState.startTime = Cesium.JulianDate.now();
+      motionState.lastT = t;
+
+      const firstPosFixed = isValidLatLon(lat, lon)
+        ? Cesium.Cartesian3.fromDegrees(lon, lat, alt)
+        : initialPos.clone();
+
+      if (isValidLatLon(lat, lon)) {
+        launchSite = { lon, lat, h: alt };
+        originFixed = Cesium.Cartesian3.fromDegrees(
+          launchSite.lon,
+          launchSite.lat,
+          launchSite.h,
+        );
+        enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(originFixed);
+      }
+
+      motionState.lastPosFixed = Cesium.Cartesian3.clone(firstPosFixed);
+      position.addSample(motionState.startTime, firstPosFixed);
+      trailPositions.length = 0;
+      trailPositions.push(Cesium.Cartesian3.clone(firstPosFixed));
+      viewer.clock.startTime = motionState.startTime.clone();
+      viewer.clock.currentTime = motionState.startTime.clone();
+      viewer.clock.stopTime = Cesium.JulianDate.addSeconds(
+        motionState.startTime,
+        120,
+        new Cesium.JulianDate(),
+      );
+      return;
+    }
+
+    const dt = motionState.lastT === null ? 0 : t - motionState.lastT;
+    motionState.lastT = t;
+    if (dt <= 0) return;
+    const dtSafe = Math.min(dt, MAX_STEP_SECONDS);
+
+    let posFixed = null;
+    if (isValidLatLon(lat, lon)) {
+      // GPS position (best source).
+      posFixed = Cesium.Cartesian3.fromDegrees(lon, lat, alt);
+    } else {
+      // Vector integration in ENU when no valid GPS.
+      if (vel !== null) {
+        const forward = forwardFromYawPitch(yaw, pitch);
+        motionState.velENU = Cesium.Cartesian3.multiplyByScalar(
+          forward,
+          vel,
+          motionState.velENU,
+        );
+      }
+
+      const aENU = new Cesium.Cartesian3(ax, ay, az);
+      if (vel === null) {
+        const dv = Cesium.Cartesian3.multiplyByScalar(
+          aENU,
+          dtSafe,
+          new Cesium.Cartesian3(),
+        );
+        motionState.velENU = Cesium.Cartesian3.add(
+          motionState.velENU,
+          dv,
+          motionState.velENU,
+        );
+      }
+
+      const deltaPos = new Cesium.Cartesian3();
+      Cesium.Cartesian3.multiplyByScalar(motionState.velENU, dtSafe, deltaPos);
+      if (vel === null) {
+        Cesium.Cartesian3.add(
+          deltaPos,
+          Cesium.Cartesian3.multiplyByScalar(
+            aENU,
+            0.5 * dtSafe * dtSafe,
+            new Cesium.Cartesian3(),
+          ),
+          deltaPos,
+        );
+      }
+      motionState.posENU = Cesium.Cartesian3.add(
+        motionState.posENU,
+        deltaPos,
+        motionState.posENU,
+      );
+
+      console.log(
+        `Position ENU: x=${motionState.posENU.x.toFixed(2)}, y=${motionState.posENU.y.toFixed(2)}, z=${motionState.posENU.z.toFixed(2)}`,
+      );
+
+      // Convert to world coordinates and add to Cesium.
+      posFixed = enuToEcef(
+        motionState.posENU.x * POSITION_SCALE,
+        motionState.posENU.y * POSITION_SCALE,
+        motionState.posENU.z * POSITION_SCALE,
+      );
+    }
+
+    if (motionState.lastPosFixed) {
+      const maxStepMeters = MAX_SPEED_MPS * dtSafe;
+      const rawStepMeters = Cesium.Cartesian3.distance(
+        motionState.lastPosFixed,
+        posFixed,
+      );
+
+      if (rawStepMeters > maxStepMeters && maxStepMeters > 0) {
+        const dir = Cesium.Cartesian3.subtract(
+          posFixed,
+          motionState.lastPosFixed,
+          new Cesium.Cartesian3(),
+        );
+        Cesium.Cartesian3.normalize(dir, dir);
+        posFixed = Cesium.Cartesian3.add(
+          motionState.lastPosFixed,
+          Cesium.Cartesian3.multiplyByScalar(
+            dir,
+            maxStepMeters,
+            new Cesium.Cartesian3(),
+          ),
+          new Cesium.Cartesian3(),
+        );
+      }
+    }
+    motionState.lastPosFixed = Cesium.Cartesian3.clone(posFixed);
+
+    const currentTime = Cesium.JulianDate.addSeconds(
+      motionState.startTime,
+      t - motionState.t0,
+      new Cesium.JulianDate(),
+    );
+
+    position.addSample(currentTime, posFixed);
+    trailPositions.push(Cesium.Cartesian3.clone(posFixed));
+    if (trailPositions.length > MAX_TRAIL_POINTS) {
+      trailPositions.shift();
+    }
+
+    const hpr = new Cesium.HeadingPitchRoll(
+      Cesium.Math.toRadians(yaw),
+      Cesium.Math.toRadians(pitch),
+      Cesium.Math.toRadians(roll),
+    );
+    rocket.orientation = new Cesium.ConstantProperty(
+      Cesium.Transforms.headingPitchRollQuaternion(posFixed, hpr),
+    );
+
+    const newStop = Cesium.JulianDate.addSeconds(
+      currentTime,
+      120,
+      new Cesium.JulianDate(),
+    );
+    if (
+      !viewer.clock.stopTime ||
+      Cesium.JulianDate.greaterThan(newStop, viewer.clock.stopTime)
+    ) {
+      viewer.clock.stopTime = newStop;
+    }
+
+    viewer.clock.currentTime = currentTime.clone();
+    if (viewer.trackedEntity !== rocket) {
+      viewer.trackedEntity = rocket;
+    }
+  }
+
+  // Expose the function so you can call it from SignalR or the console.
+  if (typeof window !== "undefined") {
+    window.moveAlongCsvData = moveAlongCsvData;
+  }
+
+  const connection = new signalR.HubConnectionBuilder()
+    .withUrl(`${serverBase}/telemetry`)
+    .withAutomaticReconnect()
+    .build();
+
+  connection.on("telemetry", (payload) => {
+    if (payload?.type === "telemetry") {
+      moveAlongCsvData(payload);
+      return;
+    }
+
+    if (payload?.type === "raw" && typeof payload.raw === "string") {
+      const parsed = parseTelemetry(payload.raw);
+      if (parsed) moveAlongCsvData(parsed);
+      return;
+    }
+
+    if (typeof payload === "string") {
+      const parsed = parseTelemetry(payload);
+      if (parsed) moveAlongCsvData(parsed);
+      return;
+    }
+
+    console.warn("Unhandled telemetry payload:", payload);
+  });
+
+  connection.start().catch((err) => {
+    console.error("SignalR start failed:", err);
+  });
 })();

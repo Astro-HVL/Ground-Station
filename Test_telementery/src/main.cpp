@@ -1,32 +1,35 @@
+#include <Arduino.h>
+#include <math.h>
+
 unsigned long seq = 0;
 
-// Grunnkonstanter
-const float G0 = 9.81f; // m/s²
+// Base constants
+const float G0 = 9.81f; // m/s^2
 const float DT_FALLBACK = 0.15f;
 const float DEG2RAD = 0.01745329252f;
 const float RAD2DEG = 57.2957795f;
 const float INITIAL_STATIC_SECONDS = 1.0f;
 const float SIM_TIME_SCALE = 0.35f; // <1 slows the whole flight timeline.
-const float BOOST_NET_ACCEL = 38.0f; // m/s² netto opp under boost.
+const float BOOST_NET_ACCEL = 38.0f; // m/s^2 net upward during boost.
 const float BOOST_BURN_SECONDS = 7.0f;
-const float CHUTE_DEPLOY_ALT = 700.0f; // meter over bakken.
-const float PITCH_OUTPUT_OFFSET_DEG = -90.0f; // Tilpass test-pitch til GLB-rammen.
+const float CHUTE_DEPLOY_ALT = 700.0f; // meters above ground.
+const float PITCH_OUTPUT_OFFSET_DEG = -90.0f; // Align test pitch to GLB frame.
 
-// Startverdier
-float t = 0.0f;     // sekunder
-float alt = 0.0f;   // meter
-float vel = 0.0f;   // m/s (opp)
-float pitch = 0.0f; // grader
+// State variables
+float t = 0.0f;     // seconds
+float alt = 0.0f;   // meters
+float vel = 0.0f;   // m/s (up)
+float pitch = 0.0f; // degrees
 float roll = 0.0f;
 float yaw = 0.0f;
 
-// Drift (vind)
-float east = 0.0f;  // meter
-float north = 0.0f; // meter
+// Drift (wind)
+float east = 0.0f;  // meters
+float north = 0.0f; // meters
 const float windEast = 2.0f;  // m/s
 const float windNorth = 0.5f; // m/s
 
-// Startposisjon (grader)
+// Start position (degrees)
 const float baseLat = 60.3701576f;
 const float baseLon = 5.3497238f;
 
@@ -39,22 +42,22 @@ void setup() {
 }
 
 float pressureAtHeight(float h) {
-  if(h < 11000) return 101325 * pow(1 - 0.0065 * h / 288.15, 5.2561);
-  else if(h < 20000) return 22632 * exp(-0.000157 * (h-11000));
-  else if(h < 32000) return 5474 * pow(1 + 0.001 * (h-20000)/216.65, -34.1632);
-  else if(h < 47000) return 868 * pow(1 - 0.0028*(h-32000)/228.65, 12.2016);
-  else if(h < 51000) return 110 * exp(-0.000157*(h-47000));
-  else if(h < 71000) return 66 * pow(1 - 0.0028*(h-51000)/270.65, -12.2016);
+  if (h < 11000) return 101325 * pow(1 - 0.0065 * h / 288.15, 5.2561);
+  else if (h < 20000) return 22632 * exp(-0.000157 * (h - 11000));
+  else if (h < 32000) return 5474 * pow(1 + 0.001 * (h - 20000) / 216.65, -34.1632);
+  else if (h < 47000) return 868 * pow(1 - 0.0028 * (h - 32000) / 228.65, 12.2016);
+  else if (h < 51000) return 110 * exp(-0.000157 * (h - 47000));
+  else if (h < 71000) return 66 * pow(1 - 0.0028 * (h - 51000) / 270.65, -12.2016);
   else return 0.12;
 }
 
 float temperatureAtHeight(float h) {
-  if(h < 11000) return 15 - 0.0065 * h;
-  else if(h < 20000) return -56.5;
-  else if(h < 32000) return -56.5 + 0.001*(h-20000);
-  else if(h < 47000) return -44.5 + 0.0028*(h-32000);
-  else if(h < 51000) return -2.5;
-  else if(h < 71000) return -2.5 - 0.0028*(h-51000);
+  if (h < 11000) return 15 - 0.0065 * h;
+  else if (h < 20000) return -56.5;
+  else if (h < 32000) return -56.5 + 0.001 * (h - 20000);
+  else if (h < 47000) return -44.5 + 0.0028 * (h - 32000);
+  else if (h < 51000) return -2.5;
+  else if (h < 71000) return -2.5 - 0.0028 * (h - 51000);
   else return -58.5;
 }
 
@@ -72,7 +75,7 @@ void loop() {
   t += simDt;
 
   int state = 0;     // 0=idle,1=boost,2=coast,3=descent,4=chute,5=landed
-  float acc = 0.0f;  // m/s² (opp)
+  float acc = 0.0f;  // m/s^2 (up)
 
   const float boostEndTime = INITIAL_STATIC_SECONDS + BOOST_BURN_SECONDS;
 
@@ -94,10 +97,10 @@ void loop() {
     acc = -G0; // coast
   } else if (alt > CHUTE_DEPLOY_ALT) {
     state = 3;
-    acc = -G0; // descent før skjerm
+    acc = -G0; // descent before chute
   } else {
     state = 4;
-    float targetVel = -15.0f; // m/s terminal med skjerm
+    float targetVel = -15.0f; // m/s terminal with chute
     float newVel = vel + (targetVel - vel) * 0.2f;
     acc = (newVel - vel) / simDt;
     vel = newVel;
@@ -115,13 +118,13 @@ void loop() {
     acc = 0.0f;
   }
 
-  // Vinddrift kun når vi er i lufta
+  // Wind drift only while airborne
   if (state != 0 && state != 5) {
     east += windEast * simDt;
     north += windNorth * simDt;
   }
 
-  // Små tilfeldige side-aksler (m/s²)
+  // Small random lateral accelerations (m/s^2)
   float ax = random(-20, 20) / 100.0f; // -0.2..0.2
   float ay = random(-20, 20) / 100.0f;
   float az = acc;
@@ -154,11 +157,12 @@ void loop() {
   float pitchOut = wrapAngle180(pitch + PITCH_OUTPUT_OFFSET_DEG);
   roll = 0.0f;
 
-  // Trykk og temperatur
+  // Pressure and temperature
   float press = pressureAtHeight(alt);
   float temp  = temperatureAtHeight(alt);
 
-  // Send CSV: t,seq,ax,ay,az,pitch,roll,yaw,temp,vel,press,lat,lon,alt,state
+  // Send CSV:
+  // t,seq,ax,ay,az,pitch,roll,yaw,temp,vel,press,lat,lon,alt,state
   Serial.print(t, 2); Serial.print(',');
   Serial.print(seq++); Serial.print(',');
   Serial.print(ax, 3); Serial.print(',');
