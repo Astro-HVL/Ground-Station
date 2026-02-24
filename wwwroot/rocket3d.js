@@ -21,7 +21,8 @@ function initRocket3D() {
     rocket3dRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     rocket3dRenderer.setClearColor(0xffffff, 0);
     if (typeof rocket3dRenderer.setClearAlpha === 'function') rocket3dRenderer.setClearAlpha(0);
-    rocket3dRenderer.setSize(container.clientWidth, container.clientHeight);
+    const size = 160;
+    rocket3dRenderer.setSize(size, size);
     container.appendChild(rocket3dRenderer.domElement);
 
     // ---------- Rocket ----------
@@ -99,8 +100,8 @@ function initRocket3D() {
 
     // ---------- Resize ----------
     function onResize() {
-        const width = container.clientWidth;
-        const height = container.clientHeight;
+        const width = size;
+        const height = size;
         rocket3dCamera.aspect = width / height;
         rocket3dCamera.updateProjectionMatrix();
         rocket3dRenderer.setSize(width, height);

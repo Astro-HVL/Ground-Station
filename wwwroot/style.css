@@ -68,8 +68,8 @@
 }
 
 #rocket3dContainer {
-    width: 340px;  /* larger 3D model */
-    height: 340px;
+    width: 120px;  /* larger 3D model */
+    height: 120px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -450,8 +450,8 @@ thead, th {
 /* Rocket container: transparent fill but visible circular border and larger size */
 #rocket3dContainer {
     background: transparent !important;
-    width: 320px !important;
-    height: 320px !important;
+    width: 160px !important;
+    height: 160px !important;
     border-radius: 50% !important;
     display: flex !important;
     align-items: center !important;
