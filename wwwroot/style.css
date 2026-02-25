@@ -1,4 +1,4 @@
-﻿html,
+html,
 body {
     margin: 0;
     height: 100%;
@@ -7,6 +7,12 @@ body {
 
 body {
     overflow-x: hidden;
+}
+
+.live-root,
+.live-root body {
+    height: 100%;
+    overflow: hidden !important;
 }
 
 :root {
@@ -91,7 +97,13 @@ th {
 
 /* Live page layout */
 .live-page {
+    position: fixed;
+    inset: 0;
     background: #000;
+    overflow: hidden !important;
+    width: 100vw;
+    height: 100vh;
+    overscroll-behavior: none;
 }
 
 .live-page #flightTimer {
@@ -103,7 +115,7 @@ th {
     font-weight: 700;
     color: #fff;
     text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
-    z-index: 1000;
+    z-index: 3000;
 }
 
 .live-page .live-container {
@@ -117,7 +129,7 @@ th {
     height: 100%;
     padding: 20px 32px;
     box-sizing: border-box;
-    z-index: 200;
+    z-index: 2000;
 }
 
 .live-page .workspace-box {
@@ -129,9 +141,18 @@ th {
     border: 2px dashed rgba(88, 142, 255, 0.55);
     border-radius: 10px;
     background: rgba(14, 26, 52, 0.1);
+    overflow: hidden;
     box-sizing: border-box;
-    pointer-events: none;
-    z-index: 120;
+    pointer-events: auto;
+    z-index: 1000;
+}
+
+.live-page .workspace-cesium-frame {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #000;
 }
 
 .live-page #top-row {
@@ -140,6 +161,8 @@ th {
     width: 100%;
     align-items: flex-start;
     justify-content: space-between;
+    position: relative;
+    z-index: 2200;
 }
 
 .live-page #top-left {
@@ -150,6 +173,8 @@ th {
     flex: 0 0 28%;
     display: flex;
     justify-content: flex-end;
+    position: relative;
+    z-index: 2300;
 }
 
 .live-page #altitudeChart {
@@ -179,7 +204,7 @@ th {
     position: relative;
     transform: translateX(var(--rocket-shift-x));
     transition: transform 0.18s ease;
-    z-index: 20000;
+    z-index: 2400;
 }
 
 .live-page #bottom-row {
@@ -189,7 +214,8 @@ th {
     width: 100%;
     gap: 24px;
     padding-bottom: 18px;
-    z-index: 20000;
+    position: relative;
+    z-index: 2300;
 }
 
 .live-page .mode-section {
@@ -197,6 +223,8 @@ th {
     flex-direction: column;
     align-items: center;
     gap: 16px;
+    position: relative;
+    z-index: 2400;
 }
 
 .live-page .mode-label {
@@ -257,7 +285,7 @@ th {
     box-sizing: border-box;
     background: var(--bar-gradient);
     backdrop-filter: blur(6px);
-    z-index: 500;
+    z-index: 1500;
     pointer-events: auto;
 }
 
@@ -314,7 +342,7 @@ th {
     box-sizing: border-box;
     background: var(--bar-gradient);
     backdrop-filter: blur(6px);
-    z-index: 500;
+    z-index: 1500;
 }
 
 .live-page .right-fixed-bar .right-inner {
@@ -324,3 +352,11 @@ th {
     align-items: center;
     gap: 12px;
 }
+
+
+.live-page .right-bar-logo {
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+

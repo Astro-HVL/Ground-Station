@@ -53,7 +53,7 @@ static string ResolveDefaultPort()
 {
     if (OperatingSystem.IsWindows())
     {
-        return "COM4";
+        return "COM5";
     }
 
     if (OperatingSystem.IsMacOS())

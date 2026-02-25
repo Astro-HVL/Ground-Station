@@ -3,6 +3,7 @@
  * This keeps the logic simple so you can add advanced math later.
  */
 (() => {
+  try {
   /**
    * Cesium Ion access token (required for default world terrain).
    * @type {string}
@@ -29,9 +30,40 @@
    * Create the Cesium viewer and enable animation.
    * @type {Cesium.Viewer}
    */
+  let worldTerrain;
+  try {
+    worldTerrain =
+      Cesium.Terrain &&
+      typeof Cesium.Terrain.fromWorldTerrain === "function"
+        ? Cesium.Terrain.fromWorldTerrain()
+        : undefined;
+  } catch (error) {
+    console.warn("World terrain unavailable, using ellipsoid terrain.", error);
+    worldTerrain = undefined;
+  }
+
   const viewer = new Cesium.Viewer("cesiumContainer", {
-    terrain: Cesium.Terrain.fromWorldTerrain(),
+    terrain: worldTerrain,
     shouldAnimate: true,
+    animation: false,
+    timeline: false,
+    baseLayerPicker: false,
+    fullscreenButton: false,
+    vrButton: false,
+    geocoder: false,
+    homeButton: false,
+    infoBox: false,
+    sceneModePicker: false,
+    selectionIndicator: false,
+    navigationHelpButton: false,
+  });
+  viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#102236");
+  viewer.camera.setView({
+    destination: Cesium.Cartesian3.fromDegrees(
+      launchSite.lon,
+      launchSite.lat,
+      launchSite.h + 2500,
+    ),
   });
 
   /**
@@ -503,4 +535,11 @@
   connection.start().catch((err) => {
     console.error("SignalR start failed:", err);
   });
+  } catch (err) {
+    console.error("Cesium bootstrap failed:", err);
+    const el = document.getElementById("cesiumContainer");
+    if (el) {
+      el.innerHTML = '<div style="color:#fff;padding:12px;font:14px Segoe UI,sans-serif;">Cesium failed to load. Check console for details.</div>';
+    }
+  }
 })();

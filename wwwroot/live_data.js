@@ -35,6 +35,33 @@ function setStatus(text) {
   }
 }
 
+function lockLivePageScroll() {
+  const root = document.documentElement;
+  const body = document.body;
+
+  function applyLock() {
+    root.style.overflow = 'hidden';
+    body.style.overflow = 'hidden';
+    body.style.position = 'fixed';
+    body.style.inset = '0';
+    body.style.width = '100%';
+    body.style.height = '100%';
+    window.scrollTo(0, 0);
+  }
+
+  applyLock();
+  window.addEventListener('resize', applyLock);
+  window.addEventListener('scroll', () => window.scrollTo(0, 0), { passive: true });
+
+  const preventPageWheel = (e) => {
+    const target = e.target;
+    if (target && target.closest && target.closest('#cesiumFrame')) return;
+    e.preventDefault();
+  };
+  document.addEventListener('wheel', preventPageWheel, { passive: false });
+  document.addEventListener('touchmove', preventPageWheel, { passive: false });
+}
+
 // ---------- Mode helpers ----------
 function setActiveMode(name) {
   [modeOn, modeReady, modePending, modeApogee, modeParachute].forEach((el) => {
@@ -260,6 +287,8 @@ async function startConn() {
 
 // ---------- DOM ready ----------
 document.addEventListener('DOMContentLoaded', () => {
+  lockLivePageScroll();
+
   circleAlt = document.getElementById('circleAltValue');
   circleVel = document.getElementById('circleVelValue');
   circleG = document.getElementById('circleGValue');
@@ -269,6 +298,14 @@ document.addEventListener('DOMContentLoaded', () => {
   modeApogee = document.getElementById('modeApogee');
   modeParachute = document.getElementById('modeParachute');
   flightTimerEl = document.getElementById('flightTimer');
+
+  const cesiumFrame = document.getElementById('cesiumFrame');
+  if (cesiumFrame) {
+    cesiumFrame.addEventListener('load', () => setStatus('cesium frame loaded'));
+    cesiumFrame.addEventListener('error', () => setStatus('cesium frame failed'));
+  } else {
+    setStatus('cesium frame missing');
+  }
 
   if (typeof initRocket3D === 'function') {
     if (!window.__rocket3d_inited) {
