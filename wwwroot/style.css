@@ -1,4 +1,4 @@
-html,
+﻿html,
 body {
     margin: 0;
     height: 100%;
@@ -296,6 +296,7 @@ th {
     justify-content: center;
     height: 100%;
     padding: 12px 24px;
+    transform: translateX(400px);
 }
 
 .live-page .metric-card.large {
@@ -359,4 +360,49 @@ th {
     height: auto;
     object-fit: contain;
 }
+
+
+.live-page .bottom-bar-logo {
+    width: 280px;
+   
+    max-width: 32vw; 
+    height: auto;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+
+
+.live-page .sponsor-logos {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex: 0 0 auto;
+}
+
+.live-page .sponsor-logo {
+    height: 52px;
+    width: auto;
+    object-fit: contain;
+    display: block;
+}
+
+.live-page .sponsor-ansys {
+    height: 52px;
+}
+
+.live-page .sponsor-nammo {
+    height: 48px;
+}
+
+.live-page .sponsor-ccb {
+    height: 120px;
+}
+
+
+.live-page .sponsor-frifond {
+    height: 70px;
+}
+
+
 
