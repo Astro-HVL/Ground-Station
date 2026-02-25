@@ -107,6 +107,7 @@ th {
 }
 
 .live-page .live-container {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 24px;
@@ -116,6 +117,21 @@ th {
     height: 100%;
     padding: 20px 32px;
     box-sizing: border-box;
+    z-index: 200;
+}
+
+.live-page .workspace-box {
+    position: fixed;
+    top: 20px;
+    left: 32px;
+    right: calc(var(--rightbar-w) + 8px);
+    bottom: calc(var(--bottombar-h) + 8px);
+    border: 2px dashed rgba(88, 142, 255, 0.55);
+    border-radius: 10px;
+    background: rgba(14, 26, 52, 0.1);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 120;
 }
 
 .live-page #top-row {
