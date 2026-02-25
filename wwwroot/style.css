@@ -401,8 +401,32 @@ th {
 
 
 .live-page .sponsor-frifond {
-    height: 70px;
+    height: 0px;
 }
 
 
+
+
+.live-page .right-fixed-bar .right-inner {
+    justify-content: center;
+}
+
+.live-page .cfd-widget {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    pointer-events: none;
+}
+
+.live-page #cfdCanvas {
+    width: 144px;
+    height: 300px;
+    display: block;
+}
+
+
+.live-page .sponsor-sevenpeaks {
+    height: 60px;
+}
 

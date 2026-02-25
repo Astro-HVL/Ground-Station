@@ -181,5 +181,5 @@ C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\de4o8suvld
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\j9jg6y81z0-0xw8b7nngi.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\mdlq1jbe1b-alky1jsv8s.gz
 C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\l6qjvfi0uc-b06h974pzu.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-5lir6hjrsd.gz
-C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-88nbv37y5p.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\lu72tba0zr-8qjv8cemhj.gz
+C:\Users\linne\GithubPulls\Ground-Station\obj\Debug\net9.0\compressed\6xi7fqtaav-16ib281nll.gz

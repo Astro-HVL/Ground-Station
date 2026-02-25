@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html class="live-root">
 <head>
   <meta charset="utf-8" />
@@ -40,6 +40,7 @@
   </div>
 
   <script src="live_data.js?v=live3"></script>
+  <script src="cfdFlow.js?v=live3"></script>
   <div class="workspace-box" id="workspaceBox">
     <iframe
       id="cesiumFrame"
@@ -74,15 +75,23 @@
         <img src="bg/ANSYS_logo.png" alt="Ansys" class="sponsor-logo sponsor-ansys">
         <img src="bg/CCB (hvit) (4).png" alt="CCB" class="sponsor-logo sponsor-ccb">
         <img src="bg/frifond.png" alt="Frifond" class="sponsor-logo sponsor-frifond">
+        <img src="bg/sevenpeaks.png" alt="Seven Peak" class="sponsor-logo sponsor-sevenpeaks">
       </div>
     </div>
   </div>
 
   <div class="right-fixed-bar">
-    <div class="right-inner"></div>
+    <div class="right-inner">
+      <div class="cfd-widget" aria-label="CFD Rocket Flow">
+        <canvas id="cfdCanvas" width="144" height="300"></canvas>
+      </div>
+    </div>
   </div>
 </body>
 </html>
+
+
+
 
 
 
