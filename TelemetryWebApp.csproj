@@ -11,4 +11,9 @@
     <PackageReference Include="System.IO.Ports" Version="9.0.9" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Keep the web app from compiling nested test projects and their obj/bin outputs. -->
+    <Compile Remove="tests/**" />
+  </ItemGroup>
+
 </Project>

@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.IO;
 using System.IO.Ports;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -30,11 +31,29 @@ app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
 });
 
 var cts = new CancellationTokenSource();
-var portName = Environment.GetEnvironmentVariable("TELEM_PORT");
-if (string.IsNullOrWhiteSpace(portName))
+var configuredPort = Environment.GetEnvironmentVariable("TELEM_PORT");
+var isPortPinned = !string.IsNullOrWhiteSpace(configuredPort);
+var portName = configuredPort;
+
+if (isPortPinned && !IsTelemetryPortName(portName!))
+{
+    Console.WriteLine($"Ignoring unsupported TELEM_PORT '{portName}'. Falling back to auto-detect.");
+    isPortPinned = false;
+    portName = null;
+}
+
+if (!isPortPinned)
 {
     portName = ResolveDefaultPort();
-    Console.WriteLine($"TELEM_PORT not set. Using serial port: {portName}");
+    if (string.IsNullOrWhiteSpace(portName))
+    {
+        Console.WriteLine("TELEM_PORT not set. No telemetry serial port detected yet; waiting for device.");
+        LogAvailablePorts();
+    }
+    else
+    {
+        Console.WriteLine($"TELEM_PORT not set. Using serial port: {portName}");
+    }
 }
 else
 {
@@ -44,72 +63,162 @@ else
 var baud = int.TryParse(Environment.GetEnvironmentVariable("TELEM_BAUD"), out var b) ? b : 115200;
 
 var hub = app.Services.GetRequiredService<IHubContext<TelemetryHub>>();
-_ = Task.Run(() => SerialLoop(portName, baud, hub, cts.Token));
+_ = Task.Run(() => SerialLoop(portName, baud, hub, cts.Token, isPortPinned));
 
 app.Lifetime.ApplicationStopping.Register(() => cts.Cancel());
 app.Run();
 
-static string ResolveDefaultPort()
+static string? ResolveDefaultPort()
 {
     if (OperatingSystem.IsWindows())
     {
-        return "COM5";
+        return FindPreferredPort(SerialPort.GetPortNames(), "COM");
     }
 
     if (OperatingSystem.IsMacOS())
     {
-        return FindFirstMatchingPort(
-                   "/dev/cu.usbmodem*",
-                   "/dev/cu.usbserial*",
-                   "/dev/tty.usbmodem*",
-                   "/dev/tty.usbserial*")
-               ?? "/dev/cu.usbmodem";
+        return FindPreferredPort(
+            SerialPort.GetPortNames(),
+            "/dev/cu.usbmodem",
+            "/dev/cu.usbserial",
+            "/dev/tty.usbmodem",
+            "/dev/tty.usbserial");
     }
 
-    return FindFirstMatchingPort("/dev/ttyACM*", "/dev/ttyUSB*")
-           ?? "/dev/ttyUSB0";
+    return FindPreferredPort(SerialPort.GetPortNames(), "/dev/ttyACM", "/dev/ttyUSB");
 }
 
-static string? FindFirstMatchingPort(params string[] patterns)
+static string? FindPreferredPort(IEnumerable<string> portNames, params string[] preferredPrefixes)
 {
-    foreach (var pattern in patterns)
+    static bool MatchesPrefix(string portName, string prefix)
     {
-        var directory = Path.GetDirectoryName(pattern);
-        var searchPattern = Path.GetFileName(pattern);
-
-        if (string.IsNullOrWhiteSpace(directory) ||
-            string.IsNullOrWhiteSpace(searchPattern) ||
-            !Directory.Exists(directory))
+        if (portName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
-            continue;
+            return true;
         }
 
-        try
-        {
-            var matches = Directory.GetFiles(directory, searchPattern);
-            Array.Sort(matches, StringComparer.Ordinal);
+        var fileName = Path.GetFileName(portName);
+        var normalizedPrefix = prefix.StartsWith("/dev/", StringComparison.OrdinalIgnoreCase)
+            ? prefix["/dev/".Length..]
+            : prefix;
+        return fileName.StartsWith(normalizedPrefix, StringComparison.OrdinalIgnoreCase);
+    }
 
-            if (matches.Length > 0)
-            {
-                return matches[0];
-            }
-        }
-        catch
+    var candidates = portNames
+        .Where(p => !string.IsNullOrWhiteSpace(p))
+        .Select(p => p.Trim())
+        .Where(IsTelemetryPortName)
+        .Distinct(StringComparer.Ordinal)
+        .OrderBy(p => p, StringComparer.Ordinal)
+        .ToArray();
+
+    foreach (var prefix in preferredPrefixes)
+    {
+        var match = candidates.FirstOrDefault(p => MatchesPrefix(p, prefix));
+        if (!string.IsNullOrWhiteSpace(match))
         {
-            // Ignore glob failures and continue searching other patterns.
+            return match;
         }
     }
 
     return null;
 }
 
-async Task SerialLoop(string port, int baudrate, IHubContext<TelemetryHub> hubContext, CancellationToken token)
+static bool IsTelemetryPortName(string portName)
 {
+    if (string.IsNullOrWhiteSpace(portName))
+    {
+        return false;
+    }
+
+    var p = portName.Trim().ToLowerInvariant();
+    if (OperatingSystem.IsWindows())
+    {
+        return p.StartsWith("com", StringComparison.Ordinal);
+    }
+
+    // Reject generic placeholders that are not real device nodes.
+    if (p == "/dev/cu.usbmodem" ||
+        p == "/dev/tty.usbmodem" ||
+        p == "/dev/cu.usbserial" ||
+        p == "/dev/tty.usbserial" ||
+        p == "/dev/ttyacm" ||
+        p == "/dev/ttyusb")
+    {
+        return false;
+    }
+
+    return p.Contains("usbmodem", StringComparison.Ordinal) ||
+           p.Contains("usbserial", StringComparison.Ordinal) ||
+           p.Contains("ttyacm", StringComparison.Ordinal) ||
+           p.Contains("ttyusb", StringComparison.Ordinal);
+}
+
+static void LogAvailablePorts()
+{
+    try
+    {
+        var ports = SerialPort.GetPortNames();
+        Array.Sort(ports, StringComparer.Ordinal);
+        if (ports.Length == 0)
+        {
+            Console.WriteLine("Available serial ports: (none)");
+            return;
+        }
+
+        var telemetryPorts = ports.Where(IsTelemetryPortName).ToArray();
+        if (telemetryPorts.Length > 0)
+        {
+            Console.WriteLine($"Available telemetry ports: {string.Join(", ", telemetryPorts)}");
+        }
+        else
+        {
+            Console.WriteLine("Available telemetry ports: (none)");
+        }
+
+        Console.WriteLine($"All serial ports: {string.Join(", ", ports)}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Could not list serial ports: {ex.Message}");
+    }
+}
+
+async Task SerialLoop(string? port, int baudrate, IHubContext<TelemetryHub> hubContext, CancellationToken token, bool isPortPinned)
+{
+    var currentPort = port;
+
     while (!token.IsCancellationRequested)
     {
+        if (!isPortPinned)
+        {
+            var discoveredPort = ResolveDefaultPort();
+            if (!string.Equals(discoveredPort, currentPort, StringComparison.Ordinal))
+            {
+                currentPort = discoveredPort;
+                Console.WriteLine($"Auto-selected serial port: {currentPort}");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(currentPort))
+        {
+            Console.WriteLine("Waiting for telemetry serial port...");
+            LogAvailablePorts();
+            await DelayWithCancellation(TimeSpan.FromSeconds(2), token);
+            continue;
+        }
+
+        if (!IsTelemetryPortName(currentPort))
+        {
+            Console.WriteLine($"Skipping unsupported serial port: {currentPort}");
+            LogAvailablePorts();
+            await DelayWithCancellation(TimeSpan.FromSeconds(2), token);
+            continue;
+        }
+
         try
         {
-            using var serial = new SerialPort(port, baudrate, Parity.None, 8, StopBits.One)
+            using var serial = new SerialPort(currentPort, baudrate, Parity.None, 8, StopBits.One)
             {
                 ReadTimeout = 1000,
                 NewLine = "\n",
@@ -117,7 +226,7 @@ async Task SerialLoop(string port, int baudrate, IHubContext<TelemetryHub> hubCo
             };
 
             serial.Open();
-            Console.WriteLine($"Opened serial {port} @ {baudrate}");
+            Console.WriteLine($"Opened serial {currentPort} @ {baudrate}");
 
             await ReadSerialAsync(serial, hubContext, token);
         }
@@ -127,7 +236,12 @@ async Task SerialLoop(string port, int baudrate, IHubContext<TelemetryHub> hubCo
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Serial error: {ex.Message}");
+            Console.WriteLine($"Serial error on {currentPort}: {ex.Message}");
+            if (!isPortPinned)
+            {
+                LogAvailablePorts();
+                currentPort = null;
+            }
             await DelayWithCancellation(TimeSpan.FromSeconds(2), token);
         }
     }
