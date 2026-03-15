@@ -362,6 +362,9 @@ static object ParsePayload(string line)
     var tSeconds = NormalizeTime(tRaw);
 
     int? seq = TryParseInt(parts[1], out var seqParsed) ? seqParsed : null;
+    double? east = parts.Length > 15 && TryParseDouble(parts[15], out var eastParsed) ? eastParsed : null;
+    double? north = parts.Length > 16 && TryParseDouble(parts[16], out var northParsed) ? northParsed : null;
+    double? up = parts.Length > 17 && TryParseDouble(parts[17], out var upParsed) ? upParsed : null;
 
     return new
     {
@@ -381,7 +384,10 @@ static object ParsePayload(string line)
         lat,
         lon,
         alt,
-        state
+        state,
+        east,
+        north,
+        up
     };
 }
 

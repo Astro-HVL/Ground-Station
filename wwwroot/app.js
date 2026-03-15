@@ -144,6 +144,28 @@ function formatNumber(value, digits) {
   return Number.isFinite(value) ? Number(value).toFixed(digits) : '-';
 }
 
+function normalizeLatLon(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+    return { lat: null, lon: null };
+  }
+
+  const directValid = lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  if (directValid && (Math.abs(lat) > 1e-6 || Math.abs(lon) > 1e-6)) {
+    return { lat, lon };
+  }
+
+  const microLat = lat / 1e6;
+  const microLon = lon / 1e6;
+  const microValid =
+    microLat >= -90 &&
+    microLat <= 90 &&
+    microLon >= -180 &&
+    microLon <= 180 &&
+    (Math.abs(microLat) > 1e-6 || Math.abs(microLon) > 1e-6);
+
+  return microValid ? { lat: microLat, lon: microLon } : { lat: null, lon: null };
+}
+
 function updateBlinkState(pitchDeg) {
   const warning = Number.isFinite(pitchDeg) && pitchDeg <= BLINK_PITCH_THRESHOLD_DEG;
   document.body.classList.toggle('blink-red', warning);
@@ -166,11 +188,12 @@ function updateLatest(timeSec, seqValue, ax, ay, az, pitch, roll, yaw, temp, vel
   if (valTemp) valTemp.textContent = formatNumber(temp, 2);
   if (valVel) valVel.textContent = formatNumber(vel, 2);
   if (valPress) valPress.textContent = formatNumber(press, 3);
+  const normalizedGps = normalizeLatLon(lat, lon);
   if (valLat) {
-    valLat.textContent = Number.isFinite(lat) ? (Number(lat) / 1e6).toFixed(6) : '-';
+    valLat.textContent = Number.isFinite(normalizedGps.lat) ? normalizedGps.lat.toFixed(6) : '-';
   }
   if (valLon) {
-    valLon.textContent = Number.isFinite(lon) ? (Number(lon) / 1e6).toFixed(6) : '-';
+    valLon.textContent = Number.isFinite(normalizedGps.lon) ? normalizedGps.lon.toFixed(6) : '-';
   }
   if (valAlt) valAlt.textContent = Number.isFinite(alt) ? Number(alt).toFixed(0) : '-';
 
