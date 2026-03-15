@@ -734,7 +734,7 @@
       }
 
       if (motionState.lastPosFixed) {
-        const maxStepMeters = MAX_SPEED_MPS * dtSafe;
+        const maxStepMeters = MAX_SPEED_MPS * (hasGpsFix ? 1 : POSITION_SCALE) * dtSafe;
         const rawStepMeters = Cesium.Cartesian3.distance(
           motionState.lastPosFixed,
           posFixed,
