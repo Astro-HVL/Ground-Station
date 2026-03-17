@@ -215,7 +215,7 @@
     /**
      * Motion state for basic integration when we do not have GPS position.
      */
-    const POSITION_SCALE = 5000;
+    const POSITION_SCALE = 100;
     const MAX_SPEED_MPS = 500;
     const MAX_STEP_SECONDS = 1;
     const FALLBACK_SAMPLE_INTERVAL_SECONDS = 0.05;
@@ -452,8 +452,10 @@
         return true;
       }
       return (
-        Cesium.Cartesian3.distance(motionState.lastRenderedPosFixed, posFixed) >=
-        MIN_SAMPLE_DISTANCE_METERS
+        Cesium.Cartesian3.distance(
+          motionState.lastRenderedPosFixed,
+          posFixed,
+        ) >= MIN_SAMPLE_DISTANCE_METERS
       );
     }
 
@@ -592,7 +594,8 @@
       const ay = readOptionalNumber(sample, ["ay", "accY", "accelY"]) ?? 0;
       const az = readOptionalNumber(sample, ["az", "accZ", "accelZ"]) ?? 0;
       const yaw =
-        readOptionalNumber(sample, ["yaw", "heading", "psi", "headingDeg"]) ?? 0;
+        readOptionalNumber(sample, ["yaw", "heading", "psi", "headingDeg"]) ??
+        0;
       const pitch =
         readOptionalNumber(sample, ["pitch", "theta", "pitchDeg"]) ?? 0;
       const roll = readOptionalNumber(sample, ["roll", "phi", "rollDeg"]) ?? 0;
@@ -603,7 +606,11 @@
         "verticalSpeed",
         "vz",
       ]);
-      const state = readOptionalNumber(sample, ["state", "flightState", "mode"]);
+      const state = readOptionalNumber(sample, [
+        "state",
+        "flightState",
+        "mode",
+      ]);
       const rawLat = readOptionalNumber(sample, ["lat", "latitude"]);
       const rawLon = readOptionalNumber(sample, ["lon", "lng", "longitude"]);
       const rawAlt = readOptionalNumber(sample, [
@@ -646,7 +653,8 @@
 
         motionState.lastPosFixed = Cesium.Cartesian3.clone(firstPosFixed);
         motionState.lastRenderedT = t;
-        motionState.lastRenderedPosFixed = Cesium.Cartesian3.clone(firstPosFixed);
+        motionState.lastRenderedPosFixed =
+          Cesium.Cartesian3.clone(firstPosFixed);
         position.addSample(motionState.startTime, firstPosFixed);
         trailPositions.length = 0;
         trailPositions.push(Cesium.Cartesian3.clone(firstPosFixed));
@@ -734,7 +742,8 @@
       }
 
       if (motionState.lastPosFixed) {
-        const maxStepMeters = MAX_SPEED_MPS * (hasGpsFix ? 1 : POSITION_SCALE) * dtSafe;
+        const maxStepMeters =
+          MAX_SPEED_MPS * (hasGpsFix ? 1 : POSITION_SCALE) * dtSafe;
         const rawStepMeters = Cesium.Cartesian3.distance(
           motionState.lastPosFixed,
           posFixed,
