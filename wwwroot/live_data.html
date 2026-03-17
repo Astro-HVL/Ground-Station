@@ -23,20 +23,6 @@
       </div>
     </div>
 
-    <div id="bottom-row">
-      <div class="mode-section">
-        <div class="mode-label">Rocket mode:</div>
-        <div class="mode-pill">
-          <div id="modeOn" class="mode-box">System Check</div>
-          <div id="modeReady" class="mode-box">Operation Ready</div>
-          <div id="modePending" class="mode-box">Lift-off</div>
-          <div id="modeApogee" class="mode-box">Apogee</div>
-          <div id="modeParachute" class="mode-box">Parachute Deployed</div>
-        </div>
-      </div>
-
-      <div id="bottom-right"></div>
-    </div>
   </div>
 
   <script src="live_data.js?v=live3"></script>
@@ -50,10 +36,7 @@
       scrolling="no"
       loading="eager">
     </iframe>
-  </div>
-
-  <div class="bottom-bar">
-    <div class="bottom-bar-inner">
+    <div class="cesium-metrics-overlay">
       <div class="metric-card large">
         <div class="metric-title">Height</div>
         <div class="metric-value" id="circleAltValue">-</div>
@@ -68,6 +51,21 @@
         <div class="metric-title">Force</div>
         <div class="metric-value" id="circleGValue">-</div>
         <div class="metric-unit">G</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <div class="bottom-bar-inner">
+      <div class="mode-section">
+        <div class="mode-label"></div>
+        <div class="mode-pill">
+          <div id="modeOn" class="mode-box">System Check</div>
+          <div id="modeReady" class="mode-box">Operation Ready</div>
+          <div id="modePending" class="mode-box">Lift-off</div>
+          <div id="modeApogee" class="mode-box">Apogee</div>
+          <div id="modeParachute" class="mode-box">Parachute Deployed</div>
+        </div>
       </div>
       <img src="bg/AstroHVL_hvit.png" alt="Astro HVL" class="bottom-bar-logo">
       <div class="sponsor-logos" aria-label="Sponsors">

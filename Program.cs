@@ -26,7 +26,12 @@ app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
     branch.UseDefaultFiles();
     branch.UseStaticFiles(new StaticFileOptions
     {
-        ContentTypeProvider = contentTypeProvider
+        ContentTypeProvider = contentTypeProvider,
+        OnPrepareResponse = ctx =>
+        {
+            ctx.Context.Response.Headers["Cache-Control"] = "no-cache, no-store";
+            ctx.Context.Response.Headers["Pragma"] = "no-cache";
+        }
     });
 });
 
