@@ -66,6 +66,7 @@
       sceneModePicker: false,
       selectionIndicator: false,
       navigationHelpButton: false,
+      sceneMode: Cesium.SceneMode.SCENE3D,
     });
     viewer.scene.globe.baseColor = Cesium.Color.fromCssColorString("#102236");
     viewer.camera.setView({
@@ -74,6 +75,11 @@
         launchSite.lat,
         launchSite.h + 2500,
       ),
+      orientation: {
+        heading: Cesium.Math.toRadians(0),
+        pitch: Cesium.Math.toRadians(-45),
+        roll: 0.0,
+      },
     });
 
     /**
@@ -165,11 +171,12 @@
       },
     });
     /**
-     * Drive the clock from telemetry samples to avoid drift.
+     * Let Cesium's clock run in real-time so SampledPositionProperty interpolates
+     * smoothly between infrequent telemetry samples instead of jumping.
      */
-    viewer.clock.clockStep = Cesium.ClockStep.TICK_DEPENDENT;
+    viewer.clock.clockStep = Cesium.ClockStep.SYSTEM_CLOCK_MULTIPLIER;
     viewer.clock.multiplier = 1;
-    viewer.clock.shouldAnimate = false;
+    viewer.clock.shouldAnimate = true;
     viewer.clock.clockRange = Cesium.ClockRange.UNBOUNDED;
 
     /**
@@ -215,8 +222,9 @@
     /**
      * Motion state for basic integration when we do not have GPS position.
      */
-    const POSITION_SCALE = 100;
+    const POSITION_SCALE = 20; // scale for tabel side testing 
     const MAX_SPEED_MPS = 500;
+    const MIN_DEAD_RECKON_VEL_MPS = 1.0; // Ignore velocity below this to suppress sensor noise when stationary
     const MAX_STEP_SECONDS = 1;
     const FALLBACK_SAMPLE_INTERVAL_SECONDS = 0.05;
     const MIN_SAMPLE_INTERVAL_SECONDS = 0.2;
@@ -690,12 +698,12 @@
             relativeEnu.east,
             VECTOR_DEADBAND_METERS,
           );
-        } else if (vel !== null) {
+        } else if (vel !== null && Math.abs(vel) >= MIN_DEAD_RECKON_VEL_MPS) {
           // Dead-reckoning: project velocity onto east axis using pitch + yaw.
-          // Assumes pitch=0 horizontal, 90=straight up (elevation angle).
+          // Assumes pitch=0 pointing straight up (rocket convention), 90=horizontal.
           // Assumes yaw=0 north, increasing clockwise (compass heading).
           motionState.posENU.x +=
-            vel * Math.cos(pitchRad) * Math.sin(yawRad) * dtSafe;
+            vel * Math.sin(pitchRad) * Math.sin(yawRad) * dtSafe;
         }
 
         if (relativeEnu.deltaNorth !== null) {
@@ -705,9 +713,9 @@
             relativeEnu.north,
             VECTOR_DEADBAND_METERS,
           );
-        } else if (vel !== null) {
+        } else if (vel !== null && Math.abs(vel) >= MIN_DEAD_RECKON_VEL_MPS) {
           motionState.posENU.y +=
-            vel * Math.cos(pitchRad) * Math.cos(yawRad) * dtSafe;
+            vel * Math.sin(pitchRad) * Math.cos(yawRad) * dtSafe;
         }
 
         if (relativeEnu.deltaUp !== null) {
@@ -725,8 +733,8 @@
             rawAlt - motionState.alt0,
             ALTITUDE_DEADBAND_METERS,
           );
-        } else if (vel !== null) {
-          motionState.posENU.z += vel * Math.sin(pitchRad) * dtSafe;
+        } else if (vel !== null && Math.abs(vel) >= MIN_DEAD_RECKON_VEL_MPS) {
+          motionState.posENU.z += vel * Math.cos(pitchRad) * dtSafe;
         }
 
         debugLog(
@@ -811,7 +819,6 @@
         viewer.clock.stopTime = newStop;
       }
 
-      viewer.clock.currentTime = currentTime.clone();
       if (viewer.trackedEntity !== rocket) {
         viewer.trackedEntity = rocket;
       }
