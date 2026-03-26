@@ -222,9 +222,13 @@
     /**
      * Motion state for basic integration when we do not have GPS position.
      */
-    const POSITION_SCALE = 20; // scale for tabel side testing 
+    const POSITION_SCALE = 20; // scale for tabel side testing
     const MAX_SPEED_MPS = 500;
     const MIN_DEAD_RECKON_VEL_MPS = 1.0; // Ignore velocity below this to suppress sensor noise when stationary
+    // States <= this value are treated as "on the pad" — dead-reckoning velocity is
+    // held at zero so sensor bias does not drift the rocket before launch.
+    // Adjust to match your firmware's state numbering (0 = idle, 1 = armed, etc.).
+    const GROUND_MAX_STATE = 1;
     const MAX_STEP_SECONDS = 1;
     const FALLBACK_SAMPLE_INTERVAL_SECONDS = 0.05;
     const MIN_SAMPLE_INTERVAL_SECONDS = 0.2;
@@ -237,6 +241,10 @@
       startTime: Cesium.JulianDate.now(),
       alt0: null,
       posENU: new Cesium.Cartesian3(0, 0, 0),
+      velENU: new Cesium.Cartesian3(0, 0, 0),
+      // Gravity vector in body frame, calibrated while on the pad.
+      // Initial guess: body Y = up (matches sample data ay ≈ 1g at rest).
+      gravityBody: new Cesium.Cartesian3(0, 9.81, 0),
       lastPosFixed: initialPos.clone(),
       lastRenderedT: null,
       lastRenderedPosFixed: initialPos.clone(),
@@ -276,13 +284,7 @@
     function normalizeLatLon(lat, lon) {
       if (lat === null || lon === null) return { lat: null, lon: null };
       if (isValidLatLon(lat, lon)) return { lat, lon };
-
-      const microLat = lat / 1e6;
-      const microLon = lon / 1e6;
-      if (isValidLatLon(microLat, microLon)) {
-        return { lat: microLat, lon: microLon };
-      }
-
+      // Reject scaled integers — real GPS must send proper decimal degrees.
       return { lat: null, lon: null };
     }
 
@@ -543,44 +545,146 @@
     }
 
     /**
-     * Parse CSV telemetry string into an object.
-     * Format (server/Program.cs): t,seq,ax,ay,az,pitch,roll,yaw,temp,vel,press,lat,lon,alt,state[,east,north,up]
-     * @param {string} csvLine - Raw CSV string from telemetry
-     * @returns {object | null}
+     * When true, field 0 of the rocket payload ('press') is treated as barometric
+     * altitude in metres ASL.  Sample value 124.7 m sits ~25 m above the hard-coded
+     * launch site (h = 100 m), which is consistent with bench / pad testing.
+     *
+     * Set to false if the sensor really reports atmospheric pressure (hPa / kPa);
+     * in that case altitude falls back to acceleration-based dead-reckoning.
+     *
+     * NOTE: POSITION_SCALE (currently 20) is applied to every ENU component in the
+     * dead-reckoning path.  For real flights set POSITION_SCALE = 1; the scale-up
+     * is only useful when movements are sub-metre during table-top tests.
      */
-    function parseTelemetry(csvLine) {
-      if (typeof csvLine !== "string") return null;
+    const USE_PRESS_AS_ALTITUDE = true;
 
-      // Remove "RX: " prefix if present
-      const cleaned = csvLine.replace(/^RX:\s*/, "").trim();
+    /**
+     * Parse a raw TX or RX telemetry line into a normalised state object.
+     *
+     * Observed wire formats
+     * ─────────────────────
+     * TX (9 fields):
+     *   press, temp, ax, ay, az, qx, qy, qz, state
+     *   e.g. "TX: 124.7,24.61,0.15,1.01,0,0,-1,0,3"
+     *
+     * RX (16 fields):
+     *   rssi, seq, f2, f3, f4, f5, f6, <TX payload × 9>
+     *   e.g. "RX: 91.0,8519,0.07,-0.09,1.0,-0.1,-0.1,124.7,24.61,0.16,1.01,0,0,-1,0,3"
+     *   Fields 0–6 are radio-link metadata; fields 7–15 are the TX payload.
+     *
+     * Orientation is a compact unit quaternion: qx, qy, qz are the vector part;
+     * qw = sqrt(1 − qx² − qy² − qz²) is derived at parse time.
+     *
+     * AMBIGUITY – field 0 ('press'):
+     *   124.7 does NOT look like atmospheric pressure in hPa (sea-level ≈ 1013)
+     *   or kPa (sea-level ≈ 101).  It is within range for metres ASL near a 100 m
+     *   launch site, so USE_PRESS_AS_ALTITUDE = true is the default.  If your
+     *   sensor outputs pressure instead, flip that flag and supply altitude via a
+     *   separate channel (or rely on dead-reckoning from acceleration).
+     *
+     * @param {string} line
+     * @returns {{ type:"telemetry", rssi:number|null, seq:number|null,
+     *             press:number, temp:number, ax:number, ay:number, az:number,
+     *             qx:number, qy:number, qz:number, state:number,
+     *             alt:number|null } | null}
+     */
+    function parseTelemetryLine(line) {
+      if (typeof line !== "string") return null;
+      const isRX = /^RX:\s*/i.test(line);
+      const cleaned = line.replace(/^[RT]X:\s*/i, "").trim();
       const parts = cleaned.split(",");
 
-      if (parts.length < 15) {
-        console.warn("Invalid telemetry format:", csvLine);
+      let rssi = null;
+      let seq  = null;
+      let payload;
+
+      if (isRX) {
+        if (parts.length < 16) {
+          console.warn("[parseTelemetryLine] RX needs ≥16 fields, got", parts.length, "—", line);
+          return null;
+        }
+        rssi    = toNumber(parts[0]);
+        seq     = toNumber(parts[1]);
+        // Fields 7–15 are the 9-field rocket state payload (identical to TX).
+        payload = parts.slice(7, 16);
+      } else {
+        // TX or bare CSV — expect exactly 9 rocket-state fields.
+        if (parts.length < 9) {
+          console.warn("[parseTelemetryLine] TX needs ≥9 fields, got", parts.length, "—", line);
+          return null;
+        }
+        payload = parts.slice(0, 9);
+      }
+
+      const nums = payload.map(toNumber);
+      if (nums.some((v) => v === null)) {
+        console.warn("[parseTelemetryLine] Non-numeric payload field:", payload);
         return null;
       }
 
-      return {
-        type: "telemetry",
-        t: parseFloat(parts[0]), // time (seconds)
-        seq: parseInt(parts[1]), // sequence id
-        ax: parseFloat(parts[2]), // acceleration X
-        ay: parseFloat(parts[3]), // acceleration Y
-        az: parseFloat(parts[4]), // acceleration Z
-        pitch: parseFloat(parts[5]), // pitch (degrees)
-        roll: parseFloat(parts[6]), // roll (degrees)
-        yaw: parseFloat(parts[7]), // yaw (degrees)
-        temp: parseFloat(parts[8]), // temperature
-        vel: parseFloat(parts[9]), // velocity (m/s)
-        press: parseFloat(parts[10]), // pressure
-        lat: parseFloat(parts[11]), // latitude (deg)
-        lon: parseFloat(parts[12]), // longitude (deg)
-        alt: parseFloat(parts[13]), // altitude (m)
-        state: parseInt(parts[14]), // state
-        east: parts.length > 15 ? parseFloat(parts[15]) : null, // east offset (m)
-        north: parts.length > 16 ? parseFloat(parts[16]) : null, // north offset (m)
-        up: parts.length > 17 ? parseFloat(parts[17]) : null, // up offset (m)
-      };
+      const [press, temp, ax, ay, az, qx, qy, qz, state] = nums;
+
+      // Expose 'alt' so the existing altitude-handling path in moveAlongCsvData
+      // picks it up automatically via readOptionalNumber(sample, ["alt", ...]).
+      const alt = USE_PRESS_AS_ALTITUDE ? press : null;
+
+      return { type: "telemetry", rssi, seq, press, temp, ax, ay, az, qx, qy, qz, state, alt };
+    }
+
+    /**
+     * Normalise a Cesium.Quaternion in-place.
+     * If the magnitude is near zero the quaternion is replaced with the identity.
+     * @param {Cesium.Quaternion} q - Modified in-place.
+     * @returns {Cesium.Quaternion}
+     */
+    function normalizeQuaternion(q) {
+      const mag2 = q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w;
+      if (mag2 < 1e-12) {
+        q.x = 0; q.y = 0; q.z = 0; q.w = 1;
+        return q;
+      }
+      return Cesium.Quaternion.normalize(q, q);
+    }
+
+    /**
+     * Convert the IMU's compact quaternion into a Cesium world-frame (ECEF) quaternion.
+     *
+     * The telemetry encodes only three quaternion components (qx, qy, qz); qw is
+     * recovered from the unit-quaternion constraint.  The body-frame rotation is
+     * then composed with the ENU→ECEF rotation at the launch origin so the rocket
+     * is oriented correctly in the world.
+     *
+     * Composition: q_world = q_enuToEcef × q_imuBody
+     *
+     * @param {object}          sample       – telemetry sample with qx/qy/qz fields
+     * @param {Cesium.Matrix4}  enuTransform – eastNorthUpToFixedFrame at the ENU origin
+     * @returns {Cesium.Quaternion | null}
+     */
+    function buildOrientationFromImu(sample, enuTransform) {
+      const qx = toNumber(sample?.qx);
+      const qy = toNumber(sample?.qy);
+      const qz = toNumber(sample?.qz);
+      if (qx === null || qy === null || qz === null) return null;
+
+      const mag2 = qx * qx + qy * qy + qz * qz;
+      if (mag2 > 1.0 + 1e-4) {
+        // Vector part exceeds the unit sphere — quaternion is invalid; skip.
+        console.warn("[buildOrientationFromImu] |qvec|² > 1:", qx, qy, qz);
+        return null;
+      }
+
+      // Positive root gives rotation angle ∈ [0°, 180°], the conventional range.
+      const qw = Math.sqrt(Math.max(0, 1 - mag2));
+
+      // Normalise to guard against floating-point drift.
+      const qImu = normalizeQuaternion(new Cesium.Quaternion(qx, qy, qz, qw));
+
+      // Extract the rotation part of the ENU→ECEF 4×4 transform.
+      const enuMat3 = Cesium.Matrix4.getMatrix3(enuTransform, new Cesium.Matrix3());
+      const qEnu   = Cesium.Quaternion.fromRotationMatrix(enuMat3, new Cesium.Quaternion());
+
+      // Compose: world orientation = ENU_rotation × IMU_body_rotation.
+      return Cesium.Quaternion.multiply(qEnu, qImu, new Cesium.Quaternion());
     }
 
     /**
@@ -691,6 +795,62 @@
         const pitchRad = Cesium.Math.toRadians(pitch);
         const yawRad = Cesium.Math.toRadians(yaw);
 
+        // Hold dead-reckoning velocity at zero while the rocket is on the pad and
+        // continuously calibrate the body-frame gravity vector from the accelerometer.
+        // This ensures gravity is correctly subtracted regardless of IMU axis convention.
+        if (state !== null && state <= GROUND_MAX_STATE) {
+          motionState.velENU.x = 0;
+          motionState.velENU.y = 0;
+          motionState.velENU.z = 0;
+          motionState.gravityBody.x = ax * 9.81;
+          motionState.gravityBody.y = ay * 9.81;
+          motionState.gravityBody.z = az * 9.81;
+        }
+
+        // Acceleration-based dead-reckoning.
+        // Rotate body-frame IMU acceleration (ax/ay/az, in g) into ENU frame using
+        // the IMU quaternion, subtract gravity, then integrate → velocity → position.
+        // This is the primary source of horizontal (east/north) movement when there
+        // is no GPS, no explicit ENU data, and no vel field in the telemetry.
+        let accelENU = null;
+        {
+          const qxS = toNumber(sample?.qx);
+          const qyS = toNumber(sample?.qy);
+          const qzS = toNumber(sample?.qz);
+          if (qxS !== null && qyS !== null && qzS !== null) {
+            const mag2 = qxS * qxS + qyS * qyS + qzS * qzS;
+            if (mag2 <= 1.0 + 1e-4) {
+              const qwS = Math.sqrt(Math.max(0, 1 - mag2));
+              const qImu = normalizeQuaternion(
+                new Cesium.Quaternion(qxS, qyS, qzS, qwS),
+              );
+              // ax/ay/az are in g; convert to m/s².
+              // Subtract the calibrated body-frame gravity BEFORE rotating so that
+              // the correct gravity axis is removed regardless of IMU mounting convention.
+              const G = 9.81;
+              const accelBody = new Cesium.Cartesian3(
+                ax * G - motionState.gravityBody.x,
+                ay * G - motionState.gravityBody.y,
+                az * G - motionState.gravityBody.z,
+              );
+              const rotMat = Cesium.Matrix3.fromQuaternion(
+                qImu,
+                new Cesium.Matrix3(),
+              );
+              accelENU = Cesium.Matrix3.multiplyByVector(
+                rotMat,
+                accelBody,
+                new Cesium.Cartesian3(),
+              );
+
+              // Integrate velocity (v += a·dt).
+              motionState.velENU.x += accelENU.x * dtSafe;
+              motionState.velENU.y += accelENU.y * dtSafe;
+              motionState.velENU.z += accelENU.z * dtSafe;
+            }
+          }
+        }
+
         if (relativeEnu.deltaEast !== null) {
           motionState.posENU.x += relativeEnu.deltaEast;
         } else if (relativeEnu.east !== null) {
@@ -704,6 +864,9 @@
           // Assumes yaw=0 north, increasing clockwise (compass heading).
           motionState.posENU.x +=
             vel * Math.sin(pitchRad) * Math.sin(yawRad) * dtSafe;
+        } else if (accelENU !== null) {
+          // Integrate position from IMU-derived velocity (p += v·dt).
+          motionState.posENU.x += motionState.velENU.x * dtSafe;
         }
 
         if (relativeEnu.deltaNorth !== null) {
@@ -716,6 +879,8 @@
         } else if (vel !== null && Math.abs(vel) >= MIN_DEAD_RECKON_VEL_MPS) {
           motionState.posENU.y +=
             vel * Math.sin(pitchRad) * Math.cos(yawRad) * dtSafe;
+        } else if (accelENU !== null) {
+          motionState.posENU.y += motionState.velENU.y * dtSafe;
         }
 
         if (relativeEnu.deltaUp !== null) {
@@ -735,6 +900,8 @@
           );
         } else if (vel !== null && Math.abs(vel) >= MIN_DEAD_RECKON_VEL_MPS) {
           motionState.posENU.z += vel * Math.cos(pitchRad) * dtSafe;
+        } else if (accelENU !== null) {
+          motionState.posENU.z += motionState.velENU.z * dtSafe;
         }
 
         debugLog(
@@ -777,14 +944,20 @@
       }
       motionState.lastPosFixed = Cesium.Cartesian3.clone(posFixed);
 
-      const hpr = new Cesium.HeadingPitchRoll(
-        Cesium.Math.toRadians(yaw),
-        Cesium.Math.toRadians(pitch),
-        Cesium.Math.toRadians(roll),
-      );
-      rocket.orientation = new Cesium.ConstantProperty(
-        Cesium.Transforms.headingPitchRollQuaternion(posFixed, hpr),
-      );
+      // Prefer IMU quaternion (qx/qy/qz from telemetry); fall back to Euler HPR.
+      const imuQuat = buildOrientationFromImu(sample, enuToFixed);
+      if (imuQuat) {
+        rocket.orientation = new Cesium.ConstantProperty(imuQuat);
+      } else {
+        const hpr = new Cesium.HeadingPitchRoll(
+          Cesium.Math.toRadians(yaw),
+          Cesium.Math.toRadians(pitch),
+          Cesium.Math.toRadians(roll),
+        );
+        rocket.orientation = new Cesium.ConstantProperty(
+          Cesium.Transforms.headingPitchRollQuaternion(posFixed, hpr),
+        );
+      }
 
       if (!shouldRenderSample(t, posFixed)) {
         if (viewer.trackedEntity !== rocket) {
@@ -824,9 +997,10 @@
       }
     }
 
-    // Expose the function so you can call it from SignalR or the console.
+    // Expose functions for SignalR consumers and console testing.
     if (typeof window !== "undefined") {
-      window.moveAlongCsvData = moveAlongCsvData;
+      window.moveAlongCsvData  = moveAlongCsvData;
+      window.parseTelemetryLine = parseTelemetryLine; // e.g. parseTelemetryLine("TX: 124.7,24.61,0.15,1.01,0,0,-1,0,3")
     }
 
     const connection = new signalR.HubConnectionBuilder()
@@ -842,19 +1016,19 @@
       }
 
       if (payload?.type === "raw" && typeof payload.raw === "string") {
-        const parsed = parseTelemetry(payload.raw);
+        const parsed = parseTelemetryLine(payload.raw);
         if (parsed) moveAlongCsvData(parsed);
         return;
       }
 
       if (payload?.type === "json" && typeof payload.data === "string") {
-        const parsed = parseTelemetry(payload.data);
+        const parsed = parseTelemetryLine(payload.data);
         if (parsed) moveAlongCsvData(parsed);
         return;
       }
 
       if (typeof payload === "string") {
-        const parsed = parseTelemetry(payload);
+        const parsed = parseTelemetryLine(payload);
         if (parsed) moveAlongCsvData(parsed);
         return;
       }
