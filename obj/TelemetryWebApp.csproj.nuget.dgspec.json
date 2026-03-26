@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj": {}
+    "/Users/magnusfondenes/GitHub/Astro/Ground-Station/TelemetryWebApp.csproj": {}
   },
   "projects": {
-    "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj": {
+    "/Users/magnusfondenes/GitHub/Astro/Ground-Station/TelemetryWebApp.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj",
+        "projectUniqueName": "/Users/magnusfondenes/GitHub/Astro/Ground-Station/TelemetryWebApp.csproj",
         "projectName": "TelemetryWebApp",
-        "projectPath": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj",
-        "packagesPath": "/Users/vetlesliper/.nuget/packages/",
-        "outputPath": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/obj/",
+        "projectPath": "/Users/magnusfondenes/GitHub/Astro/Ground-Station/TelemetryWebApp.csproj",
+        "packagesPath": "/Users/magnusfondenes/.nuget/packages/",
+        "outputPath": "/Users/magnusfondenes/GitHub/Astro/Ground-Station/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/vetlesliper/.nuget/NuGet/NuGet.Config"
+          "/Users/magnusfondenes/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net9.0"
@@ -44,10 +44,6 @@
         "net9.0": {
           "targetAlias": "net9.0",
           "dependencies": {
-            "Microsoft.AspNetCore.SignalR": {
-              "target": "Package",
-              "version": "[1.2.0, )"
-            },
             "System.IO.Ports": {
               "target": "Package",
               "version": "[9.0.9, )"
@@ -72,7 +68,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.306/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.305/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

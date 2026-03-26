@@ -22,7 +22,10 @@ app.MapWhen(ctx => !ctx.Request.Path.StartsWithSegments("/telemetry"), branch =>
 });
 
 var cts = new CancellationTokenSource();
-var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ?? (OperatingSystem.IsWindows() ? "COM4" : "/dev/ttyUSB0");
+var portName = Environment.GetEnvironmentVariable("TELEM_PORT") ??
+    (OperatingSystem.IsWindows() ? "COM4" :
+     OperatingSystem.IsMacOS()   ? DetectMacSerialPort() :
+                                   "/dev/ttyUSB0");
 var baud = int.TryParse(Environment.GetEnvironmentVariable("TELEM_BAUD"), out var b) ? b : 115200;
 
 var hub = app.Services.GetRequiredService<IHubContext<TelemetryHub>>();
@@ -197,6 +200,25 @@ static object ParsePayload(string line)
         alt,
         state
     };
+}
+
+static string DetectMacSerialPort()
+{
+    var candidates = System.IO.Directory.GetFiles("/dev", "tty.usb*")
+        .Concat(System.IO.Directory.GetFiles("/dev", "tty.SLAB*"))
+        .Concat(System.IO.Directory.GetFiles("/dev", "tty.usbmodem*"))
+        .ToArray();
+
+    if (candidates.Length == 0)
+    {
+        Console.WriteLine("No USB serial ports found. Set TELEM_PORT env var manually.");
+        return "/dev/tty.usbserial-0";
+    }
+
+    if (candidates.Length > 1)
+        Console.WriteLine($"Multiple serial ports found, using first: {string.Join(", ", candidates)}");
+
+    return candidates[0];
 }
 
 public class TelemetryHub : Hub { }
