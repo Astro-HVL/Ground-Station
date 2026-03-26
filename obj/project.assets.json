@@ -3198,31 +3198,24 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\linne\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "/Users/vetlesliper/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\linne\\GithubPulls\\Ground-Station\\TelemetryWebApp.csproj",
+      "projectUniqueName": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj",
       "projectName": "TelemetryWebApp",
-      "projectPath": "C:\\Users\\linne\\GithubPulls\\Ground-Station\\TelemetryWebApp.csproj",
-      "packagesPath": "C:\\Users\\linne\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\linne\\GithubPulls\\Ground-Station\\obj\\",
+      "projectPath": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/TelemetryWebApp.csproj",
+      "packagesPath": "/Users/vetlesliper/.nuget/packages/",
+      "outputPath": "/Users/vetlesliper/Desktop/Astro HVL /Ground-Station/obj/",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\linne\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
+        "/Users/vetlesliper/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
       ],
       "sources": {
-        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -3275,7 +3268,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.309/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.306/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
