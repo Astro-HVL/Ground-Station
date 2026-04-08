@@ -11,11 +11,35 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.Hosting;
 
+
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 
 var app = builder.Build();
 app.MapHub<TelemetryHub>("/telemetry");
+
+// *************************************************************** DATABASE CONNECTION AND SEEDING - START *************************************************************** //
+// To be able to see your database locally with test data, you need to make sure you have the tables created :) Check the manual for the SQL scripts and HOW TO
+
+// Create database connection
+var dbConn = new DbConnection();
+
+// Run the flight state seeder once
+var flightStateseeder = new DbFlightStateSeeder(dbConn);
+await flightStateseeder.SeedFlightStatesAsync();
+
+// Pass connection to the test seeder
+var testSeeder = new DbTestSeeder(dbConn);
+
+// Seed the database with test data
+await testSeeder.SeedTestAsync(
+    rocketName: "testRocket",
+    missionName: "testFlight",
+    telemetryRows: 1500,
+    samplePeriodMs: 50
+);
+
+// *************************************************************** DATABASE CONNECTION AND SEEDING - END ***************************************************************** //
 
 var contentTypeProvider = new FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".glb"] = "model/gltf-binary";
