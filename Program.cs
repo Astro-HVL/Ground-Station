@@ -15,12 +15,17 @@ using Microsoft.Extensions.Hosting;
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
 
+builder.Services.AddSingleton<DbConnection>();
+builder.Services.AddScoped<RocketRepository>();
+builder.Services.AddScoped<FlightRepository>();
+
+builder.Services.AddSingleton<TelemetryRepository>();
+builder.Services.AddHostedService<SerialTelemetryService>();
+
 var app = builder.Build();
 app.MapHub<TelemetryHub>("/telemetry");
 
-builder.Services.AddScoped<RocketRepository>();
-builder.Services.AddScoped<FlightRepository>();
-builder.Services.AddScoped<TelemetryRepository>();
+
 
 // *************************************************************** DATABASE CONNECTION AND SEEDING - START *************************************************************** //
 // To be able to see your database locally with test data, you need to make sure you have the tables created :) Check the manual for the SQL scripts and HOW TO
@@ -424,4 +429,17 @@ static object ParsePayload(string line)
     };
 }
 
-public class TelemetryHub : Hub { }
+public class TelemetryHub : Hub
+{
+    private readonly TelemetryRepository _repo;
+
+    public TelemetryHub(TelemetryRepository repo) => _repo = repo;
+
+    public async Task ReceivePacket(TelemetryInsert packet)
+    {
+        await Task.WhenAll(
+            Clients.All.SendAsync("telemetry", packet),  // → JS live view
+            _repo.SaveAsync(packet)                       // → database
+        );
+    }
+}
