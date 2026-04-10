@@ -18,6 +18,10 @@ builder.Services.AddSignalR();
 var app = builder.Build();
 app.MapHub<TelemetryHub>("/telemetry");
 
+builder.Services.AddScoped<RocketRepository>();
+builder.Services.AddScoped<FlightRepository>();
+builder.Services.AddScoped<TelemetryRepository>();
+
 // *************************************************************** DATABASE CONNECTION AND SEEDING - START *************************************************************** //
 // To be able to see your database locally with test data, you need to make sure you have the tables created :) Check the manual for the SQL scripts and HOW TO
 
