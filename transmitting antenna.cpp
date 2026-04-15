@@ -56,24 +56,7 @@ void setup() {
   Serial.println("Transmitter ready.");
 }
 
-static int counter = 0;
-
 void loop() {
-<<<<<<< HEAD
-  char msg[16];
-  snprintf(msg, sizeof(msg), "%d", counter++);
-
-  int state = radio.transmit(msg);
-  if (state == RADIOLIB_ERR_NONE) {
-    Serial.print("Sent: ");
-    Serial.println(msg);
-  } else {
-    Serial.print("TX error: ");
-    Serial.println(state);
-  }
-
-  delay(500);
-=======
   String payload = "ASTRO_HVL_PACKET_" + String(packetCounter++);
   int state = radio.transmit(payload);
 
@@ -86,5 +69,4 @@ void loop() {
   }
 
   delay(TX_INTERVAL_MS);
->>>>>>> 57a1953 (RF sender)
 }
