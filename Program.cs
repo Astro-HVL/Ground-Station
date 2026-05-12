@@ -9,7 +9,9 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
+using TelemetryWebApp.Db;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSignalR();
@@ -69,9 +71,22 @@ var baud = int.TryParse(Environment.GetEnvironmentVariable("TELEM_BAUD"), out va
 
 var hub = app.Services.GetRequiredService<IHubContext<TelemetryHub>>();
 var compactTelemetryParser = new CompactTelemetryParser();
-_ = Task.Run(() => SerialLoop(portName, baud, hub, cts.Token, isPortPinned));
 
-app.Lifetime.ApplicationStopping.Register(() => cts.Cancel());
+var dbConnString = Environment.GetEnvironmentVariable("TELEM_DB_CONNSTR")
+    ?? app.Configuration.GetConnectionString("Telemetry")
+    ?? "Host=localhost;Port=5432;Database=astro;Username=astro;Password=";
+var rocketName = app.Configuration["Telemetry:RocketName"] ?? "Astro";
+var launchSite = app.Configuration["Telemetry:LaunchSite"];
+var dbLogger = new TelemetryDbLogger(dbConnString, rocketName, launchSite);
+await dbLogger.InitializeAsync(cts.Token);
+
+_ = Task.Run(() => SerialLoop(portName, baud, hub, dbLogger, cts.Token, isPortPinned));
+
+app.Lifetime.ApplicationStopping.Register(() =>
+{
+    cts.Cancel();
+    dbLogger.DisposeAsync().AsTask().GetAwaiter().GetResult();
+});
 app.Run();
 
 static string? ResolveDefaultPort()
@@ -190,7 +205,7 @@ static void LogAvailablePorts()
     }
 }
 
-async Task SerialLoop(string? port, int baudrate, IHubContext<TelemetryHub> hubContext, CancellationToken token, bool isPortPinned)
+async Task SerialLoop(string? port, int baudrate, IHubContext<TelemetryHub> hubContext, TelemetryDbLogger logger, CancellationToken token, bool isPortPinned)
 {
     var currentPort = port;
 
@@ -234,7 +249,7 @@ async Task SerialLoop(string? port, int baudrate, IHubContext<TelemetryHub> hubC
             serial.Open();
             Console.WriteLine($"Opened serial {currentPort} @ {baudrate}");
 
-            await ReadSerialAsync(serial, hubContext, token);
+            await ReadSerialAsync(serial, hubContext, logger, token);
         }
         catch (OperationCanceledException)
         {
@@ -253,7 +268,7 @@ async Task SerialLoop(string? port, int baudrate, IHubContext<TelemetryHub> hubC
     }
 }
 
-async Task ReadSerialAsync(SerialPort serial, IHubContext<TelemetryHub> hubContext, CancellationToken token)
+async Task ReadSerialAsync(SerialPort serial, IHubContext<TelemetryHub> hubContext, TelemetryDbLogger logger, CancellationToken token)
 {
     using var reader = new StreamReader(serial.BaseStream, Encoding.ASCII, leaveOpen: true);
 
@@ -288,6 +303,7 @@ async Task ReadSerialAsync(SerialPort serial, IHubContext<TelemetryHub> hubConte
         {
             var payload = ParsePayload(line);
             await hubContext.Clients.All.SendAsync("telemetry", payload, token);
+            logger.Enqueue(payload);
             Console.WriteLine($"RX: {line}");
         }
         catch (Exception ex)
