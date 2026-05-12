@@ -16,7 +16,8 @@ function dbg(message) {
 }
 
 const BLINK_PITCH_THRESHOLD_DEG = -1.5;
-const MAX_DATA_POINTS = 2000;
+const MAX_DATA_POINTS = 900;
+const CHART_UPDATE_INTERVAL_MS = 200;
 
 // DOM elements
 const valTime = document.getElementById('val_time');
@@ -228,6 +229,7 @@ let accChart;
 let orientChart;
 let tempChart;
 let pressChart;
+let lastChartUpdateAt = 0;
 
 function createCharts() {
   const xAxisOptions = {
@@ -377,19 +379,20 @@ function createCharts() {
 function pushToCharts(timeSec, ax, ay, az, pitch, roll, yaw, temp, vel, press, alt) {
   if (!Number.isFinite(timeSec)) return;
   const label = timeSec.toFixed(3);
+  const shouldUpdateNow = Date.now() - lastChartUpdateAt >= CHART_UPDATE_INTERVAL_MS;
 
   if (velChart) {
     velChart.data.labels.push(label);
     velChart.data.datasets[0].data.push(Number.isFinite(vel) ? vel : null);
     trimChart(velChart);
-    velChart.update('none');
+    if (shouldUpdateNow) velChart.update('none');
   }
 
   if (altChart) {
     altChart.data.labels.push(label);
     altChart.data.datasets[0].data.push(Number.isFinite(alt) ? alt : null);
     trimChart(altChart);
-    altChart.update('none');
+    if (shouldUpdateNow) altChart.update('none');
   }
 
   if (accChart) {
@@ -398,7 +401,7 @@ function pushToCharts(timeSec, ax, ay, az, pitch, roll, yaw, temp, vel, press, a
     accChart.data.datasets[1].data.push(Number.isFinite(ay) ? ay : null);
     accChart.data.datasets[2].data.push(Number.isFinite(az) ? az : null);
     trimChart(accChart);
-    accChart.update('none');
+    if (shouldUpdateNow) accChart.update('none');
   }
 
   if (orientChart) {
@@ -407,21 +410,25 @@ function pushToCharts(timeSec, ax, ay, az, pitch, roll, yaw, temp, vel, press, a
     orientChart.data.datasets[1].data.push(Number.isFinite(roll) ? roll : null);
     orientChart.data.datasets[2].data.push(Number.isFinite(yaw) ? yaw : null);
     trimChart(orientChart);
-    orientChart.update('none');
+    if (shouldUpdateNow) orientChart.update('none');
   }
 
   if (tempChart) {
     tempChart.data.labels.push(label);
     tempChart.data.datasets[0].data.push(Number.isFinite(temp) ? temp : null);
     trimChart(tempChart);
-    tempChart.update('none');
+    if (shouldUpdateNow) tempChart.update('none');
   }
 
   if (pressChart) {
     pressChart.data.labels.push(label);
     pressChart.data.datasets[0].data.push(Number.isFinite(press) ? press : null);
     trimChart(pressChart);
-    pressChart.update('none');
+    if (shouldUpdateNow) pressChart.update('none');
+  }
+
+  if (shouldUpdateNow) {
+    lastChartUpdateAt = Date.now();
   }
 }
 

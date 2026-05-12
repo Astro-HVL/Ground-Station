@@ -220,7 +220,7 @@ conn.on('telemetry', (payload) => {
       if ([3, 4, 5].includes(state)) {
         pushAltitude(timeSec, alt);
       }
-
+// Fjern blinke faenskap eventuelt lol
       switch (state) {
         case 1:
           setActiveMode('on');

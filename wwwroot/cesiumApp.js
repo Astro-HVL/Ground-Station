@@ -162,7 +162,10 @@
 
     // Fallback trail polyline to keep history visible even if clock drifts.
     const trailPositions = [initialPos.clone()];
-    const MAX_TRAIL_POINTS = 3000;
+    const MAX_TRAIL_POINTS = 1200;
+    const POSITION_SAMPLE_HISTORY_SECONDS = 300;
+    const PRUNE_POSITION_SAMPLES_EVERY = 25;
+    let renderedSampleCount = 0;
     viewer.entities.add({
       polyline: {
         positions: new Cesium.CallbackProperty(() => trailPositions, false),
@@ -469,6 +472,32 @@
       );
     }
 
+    function prunePositionHistory(currentTime) {
+      renderedSampleCount += 1;
+      if (renderedSampleCount % PRUNE_POSITION_SAMPLES_EVERY !== 0) {
+        return;
+      }
+
+      const cutoff = Cesium.JulianDate.addSeconds(
+        currentTime,
+        -POSITION_SAMPLE_HISTORY_SECONDS,
+        new Cesium.JulianDate(),
+      );
+      if (!Cesium.JulianDate.greaterThan(cutoff, viewer.clock.startTime)) {
+        return;
+      }
+
+      position.removeSamples(
+        new Cesium.TimeInterval({
+          start: viewer.clock.startTime,
+          stop: cutoff,
+          isStartIncluded: true,
+          isStopIncluded: false,
+        }),
+      );
+      viewer.clock.startTime = cutoff.clone();
+    }
+
     /**
      * Check whether an object looks like telemetry even if it lacks a type wrapper.
      * @param {unknown} payload
@@ -768,6 +797,7 @@
         motionState.lastRenderedPosFixed =
           Cesium.Cartesian3.clone(firstPosFixed);
         position.addSample(motionState.startTime, firstPosFixed);
+        renderedSampleCount = 1;
         trailPositions.length = 0;
         trailPositions.push(Cesium.Cartesian3.clone(firstPosFixed));
         viewer.clock.startTime = motionState.startTime.clone();
@@ -973,6 +1003,7 @@
       );
 
       position.addSample(currentTime, posFixed);
+      prunePositionHistory(currentTime);
       trailPositions.push(Cesium.Cartesian3.clone(posFixed));
       if (trailPositions.length > MAX_TRAIL_POINTS) {
         trailPositions.shift();
