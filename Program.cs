@@ -454,6 +454,11 @@ sealed class CompactTelemetryParser
             return null;
         }
 
+        if (TryParseBinaryFrame(line) is { } binTelemetry)
+        {
+            return binTelemetry;
+        }
+
         if (TryParseRssi(line, out var rssi))
         {
             _lastRssi = rssi;
@@ -702,6 +707,101 @@ sealed class CompactTelemetryParser
             });
 
         return payload;
+    }
+
+    private Dictionary<string, object?>? TryParseBinaryFrame(string line)
+    {
+        if (!line.StartsWith("BIN:", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var rest = line[4..];
+        var commaIdx = rest.IndexOf(',');
+        var hexPart = commaIdx >= 0 ? rest[..commaIdx].Trim() : rest.Trim();
+        var tail = commaIdx >= 0 ? rest[(commaIdx + 1)..] : string.Empty;
+
+        const int ExpectedBytes = 36;
+        if (hexPart.Length != ExpectedBytes * 2)
+        {
+            return null;
+        }
+
+        var bytes = new byte[ExpectedBytes];
+        for (var i = 0; i < ExpectedBytes; i++)
+        {
+            if (!byte.TryParse(
+                    hexPart.AsSpan(i * 2, 2),
+                    NumberStyles.HexNumber,
+                    CultureInfo.InvariantCulture,
+                    out bytes[i]))
+            {
+                return null;
+            }
+        }
+
+        foreach (var seg in tail.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (TryParseRssi(seg, out var rssi))
+            {
+                _lastRssi = rssi;
+            }
+        }
+
+        using var ms = new MemoryStream(bytes);
+        using var br = new BinaryReader(ms);
+
+        var sync = br.ReadUInt16();
+        if (sync != 0x55AA)
+        {
+            return null;
+        }
+        var ver = br.ReadByte();
+        if (ver != 1)
+        {
+            return null;
+        }
+        int state = br.ReadByte();
+        int flags = br.ReadByte();
+        br.ReadByte(); // _rsv
+        var seq = br.ReadUInt32();
+        var t_ms = br.ReadUInt32();
+        double alt_kf = br.ReadInt16();
+        double baro_alt = br.ReadInt16();
+        var vz = br.ReadInt16() / 100.0;
+        var ax = br.ReadInt16() / 100.0;
+        var ay = br.ReadInt16() / 100.0;
+        var az = br.ReadInt16() / 100.0;
+        var pitch = br.ReadInt16() / 10.0;
+        var roll = br.ReadInt16() / 10.0;
+        var yaw = br.ReadInt16() / 10.0;
+        var temp = br.ReadInt16() / 10.0;
+        var press = br.ReadUInt16() * 10.0;
+
+        var t = t_ms / 1000.0;
+
+        return BuildTelemetryPayload(
+            t,
+            seqHint: unchecked((int)seq),
+            ax,
+            ay,
+            az,
+            pitch,
+            roll,
+            yaw,
+            state,
+            alt: alt_kf,
+            vel: vz,
+            extras: new Dictionary<string, object?>
+            {
+                ["baro_alt"] = baro_alt,
+                ["temp"] = temp,
+                ["press"] = press,
+                ["drogue"] = (flags & 0x01) != 0,
+                ["main"] = (flags & 0x02) != 0,
+                ["armed"] = (flags & 0x04) != 0,
+                ["accUnit"] = "g"
+            });
     }
 
     private object? TryParseExtendedRx(string[] parts)
